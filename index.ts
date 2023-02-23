@@ -1,96 +1,121 @@
-// interface IClean {
-//     isRetryable: boolean;
-//     isSuccess: () => boolean;
+interface IClean {
+    isRetryable: boolean;
+    isSuccess: () => boolean;
 
-//     // consider changing to a bool if needed, default is: success = promise resolved
-//     // ... will be defined after testing some dynamic shit
-// }
+    // consider changing to a bool if needed, default is: success = promise resolved
+    // ... will be defined after testing some dynamic shit
+}
 
-// class Clean<TT> extends Promise<TT> {
-//     isRetryable: boolean;
-//     isSuccess: Function;
-//     revert: Function;
-//     rescue: Function;
-//     retryAttemptsCount: 0;
-//     maxRetryAttempts: -1;
-//     constructor(executor, options) {
-//         super(executor);
-//         // after 'super' call, internal promise function is already thened
-//         options && (this.isSuccess = options.isSuccess);
-//         options && (this.revert = options.revert);
-//         this.rescue = function() {
-//             const shouldRetry = this.isRetryable && this.retryAttemptsCount < this.maxRetryAttempts;
-//             if (shouldRetry) {
-//                 // try again somehow
-//                 return; // return something for short circuit
-//             }
-//             const shouldRevert = this.revert;
-//             if (shouldRevert) {
-//                 this.revert();
-//             }
-//         }
-//         this.then = function(onfulfilled, onrejected) {
-//             console.log('then wrapper');
-//             // im trying to find out where inner promise is being 'thened'
-//             return new Promise((resolve, reject) => {
-//                 // here the Clean resolves or rejects, regardless of the inner promise
-//                 const originalPromiseValue = onfulfilled('wtffff' as any);
-//                 if (!this.isSuccess(originalPromiseValue)) {
-//                     console.log('rescuing')
-//                     if (!this.rescue()) {
-//                         return reject(onrejected);
-//                     }
-//                 }
-//                 return resolve(originalPromiseValue);
-//             });
-//         }
-//     }
-// }
+interface CleanConfig {
+    isRetryable?: boolean;
+    isSuccess: () => boolean;
+    revert?: Function;
+    isRevertable?: boolean;
+    maxRetryAttempts?: number;
+}
 
-// (async function() {
+class Clean<TT> implements PromiseLike<TT> {
+    config: CleanConfig;
+    rescue: Function;
+    innerPromise: PromiseLike<TT>;
+    retryAttemptsCount: number = 0;
+    // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
+    then: <TResult1 = TT, TResult2 = never>(onfulfilled?: ((value: TT) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null) => Promise<TResult1 | TResult2> = function(onfulfilled, onrejected) {
+        return new Promise(async <TResult1 = TT, TResult2 = never>(resolve: (value: TResult1 | TResult2 | PromiseLike<TResult1 | TResult2>) => void, reject: (reason?: any) => void) => {
+            // here the Clean resolves or rejects, regardless of the inner promise
+            try {
+                const originalPromiseReturn: TT = await this.innerPromise;
+                if (!this.config.isSuccess(originalPromiseReturn)) {
+                        console.log('rescuing')
+                        if (!this.rescue()) {
+                            await onrejected('reason...'); 
+                            reject('Clean rejected...');
+                            return;
+                        }
+                    }
+                    await onfulfilled(originalPromiseReturn);
+                    resolve(originalPromiseReturn as unknown as TResult1);
+            } catch (innerPromiseError) {
+                await onrejected(innerPromiseError); 
+                console.error('inner promise rejected.');
+                console.error(innerPromiseError);
+            }
+        });
+    };
+    constructor(executor, config: CleanConfig) {
+        if (!config?.revert && config?.isRevertable !== false) {
+            throw new Error('Clean must either have a revert method or explicitly state it is irevertable.');
+        }
 
-//     const originalValue = 0;
-//     let variable = 0;
+        const innerPromise = new Promise<TT>(executor);
+        this.innerPromise = innerPromise;
+        config && (this.config = config);
 
-//     const addOne = new Clean(
-//         (resolve, reject) => {
-//             const toReject = true;
+        // default values
+        this.config.isRetryable = this.config?.isRetryable ?? false;
+        this.config.maxRetryAttempts = this.config?.maxRetryAttempts ?? 5;
 
-//             ++variable;
-//             if (toReject) {
-//                 reject('Couldn\'t do action');
-//             } else {
-//                 resolve('yay');
-//             }
-//         },
-//         {
-//             revert: () => {
-//                 variable = originalValue;
-//             },
-//             isSuccess: function() {
-//                 return variable === 1;
-//             },
-//         }
-//     );
+        this.rescue = function() {
+            const shouldRetry = this.config.isRetryable && this.config.retryAttemptsCount < this.config.maxRetryAttempts;
+            if (shouldRetry) {
+                // try again somehow
+                return; // return something for short circuit
+            }
+            const shouldRevert = this.config.revert;
+            if (shouldRevert) {
+                return this.config.revert();
+            }
+        }
+    }
+}
 
-//     // const anotherAsyncAction = new Clean((resolve, reject) => {
-//     //     resolve('lol');
-//     // },
-//     // {
-//     //     isSuccess: function(promiseResolvedValue) {
-//     //         return promiseResolvedValue === 'lol';
-//     //     }
-//     // });
+(async function() {
 
+    const originalValue = 0;
+    let variable = 0;
 
+    const addOne = new Clean(
+        (resolve, reject) => {
+            const toReject = true;
 
-//     try {
-//         const res = await addOne;
-//         console.log(res);
-//         // const res2 = await anotherAsyncAction;
-//         // console.log(res2);
-//         // anotherAsyncAction.then(console.log);
-//     } catch (e) {
-//         console.log('Clean rejected');
-//     }
-// })();
+            ++variable;
+            // ++variable; // temp to fail isSuccess
+            if (toReject) {
+                reject('Couldn\'t do action');
+            } else {
+                resolve('yay');
+            }
+        },
+        {
+            revert: () => {
+                variable = originalValue;
+            },
+            isSuccess: function() {
+                return variable === 1;
+            },
+        }
+    );
+
+    // const anotherAsyncAction = new Clean((resolve, reject) => {
+    //     resolve('lol');
+    // },
+    // {
+    //     isSuccess: function(promiseResolvedValue) {
+    //         return promiseResolvedValue === 'lol';
+    //     }
+    // });
+
+    // addOne
+    //     .then(
+    //         value => console.log(`what value is this? value: ${value}`),
+    //         error => console.warn(`lol this is inner promise onrejected. error: ${error}`)
+    //     )
+    //     .catch(e => console.error(`Clean rejected, Error: '${e}'. How can I do it with async await?`));
+
+    try {
+        const value = await addOne;
+        console.log(`what value is this? value: ${value}`);
+    } catch (e) {
+        console.error(`Clean rejected, Error: '${e}'.`);
+    }
+})();
