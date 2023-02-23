@@ -17,28 +17,28 @@ interface CleanConfig {
 class Clean<TT> implements PromiseLike<TT> {
     config: CleanConfig;
     rescue: Function;
-    innerPromise;
+    innerPromise: PromiseLike<TT>;
     retryAttemptsCount: number = 0;
-    then = function(onfulfilled, onrejected) {
-        // im trying to find out where inner promise is being 'thened'
-        return new Promise(async (resolve, reject) => {
+    // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
+    then: <TResult1 = TT, TResult2 = never>(onfulfilled?: ((value: TT) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null) => Promise<TResult1 | TResult2> = function(onfulfilled, onrejected) {
+        return new Promise(async <TResult1 = TT, TResult2 = never>(resolve: (value: TResult1 | TResult2 | PromiseLike<TResult1 | TResult2>) => void, reject: (reason?: any) => void) => {
             // here the Clean resolves or rejects, regardless of the inner promise
             try {
-                const originalPromiseValue: TT = await this.innerPromise;
-                if (!this.isSuccess(originalPromiseValue)) {
+                const originalPromiseReturn: TT = await this.innerPromise;
+                if (!this.config.isSuccess(originalPromiseReturn)) {
                         console.log('rescuing')
                         if (!this.rescue()) {
-                            await onrejected(); 
+                            await onrejected('reason...'); 
                             reject('Clean rejected...');
                             return;
                         }
                     }
-                    await onfulfilled(); // probably wrong usage, if 'then' would have the PromiseLike.then types, I believe it would type error me
-                    resolve(originalPromiseValue);
-            } catch (e) {
-                await onrejected(); 
+                    await onfulfilled(originalPromiseReturn);
+                    resolve(originalPromiseReturn as unknown as TResult1);
+            } catch (innerPromiseError) {
+                await onrejected(innerPromiseError); 
                 console.error('inner promise rejected.');
-                console.error(e);
+                console.error(innerPromiseError);
             }
         });
     };
@@ -47,7 +47,7 @@ class Clean<TT> implements PromiseLike<TT> {
             throw new Error('Clean must either have a revert method or explicitly state it is irevertable.');
         }
 
-        const innerPromise = new Promise(executor);
+        const innerPromise = new Promise<TT>(executor);
         this.innerPromise = innerPromise;
         config && (this.config = config);
 
@@ -76,7 +76,7 @@ class Clean<TT> implements PromiseLike<TT> {
 
     const addOne = new Clean(
         (resolve, reject) => {
-            const toReject = false;
+            const toReject = true;
 
             ++variable;
             // ++variable; // temp to fail isSuccess
@@ -105,13 +105,17 @@ class Clean<TT> implements PromiseLike<TT> {
     //     }
     // });
 
-    // addOne.then(value => console.log(`what value is this? value: ${value}`), error => console.warn('lol this is inner promise onrejected'))
-    // .catch(e => console.error(`Clean rejected, Error: '${e}'. How can I do it with async await?`));
+    // addOne
+    //     .then(
+    //         value => console.log(`what value is this? value: ${value}`),
+    //         error => console.warn(`lol this is inner promise onrejected. error: ${error}`)
+    //     )
+    //     .catch(e => console.error(`Clean rejected, Error: '${e}'. How can I do it with async await?`));
 
     try {
         const value = await addOne;
         console.log(`what value is this? value: ${value}`);
     } catch (e) {
-        console.error(`Clean rejected, Error: '${e}'. How can I do it with async await?`);
+        console.error(`Clean rejected, Error: '${e}'.`);
     }
 })();
