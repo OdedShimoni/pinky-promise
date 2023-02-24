@@ -1,21 +1,13 @@
-interface IClean {
-    isRetryable: boolean;
-    isSuccess: () => boolean;
-
-    // consider changing to a bool if needed, default is: success = promise resolved
-    // ... will be defined after testing some dynamic shit
-}
-
-interface CleanConfig {
+interface CleanConfig<T> {
     isRetryable?: boolean;
-    isSuccess: () => boolean;
+    isSuccess: (innerPromiseReturn?: T) => boolean; // shouldn't be called before innerPromise is resolved. TODO write a restriction to not allow it and write a test for it
     revert?: Function;
-    isRevertable?: boolean;
+    revertOnError?: boolean;
     maxRetryAttempts?: number;
 }
 
 class Clean<TT> implements PromiseLike<TT> {
-    config: CleanConfig;
+    _config: CleanConfig<TT>;
     rescue: Function;
     innerPromise: PromiseLike<TT>;
     retryAttemptsCount: number = 0;
@@ -24,17 +16,16 @@ class Clean<TT> implements PromiseLike<TT> {
         return new Promise(async <TResult1 = TT, TResult2 = never>(resolve: (value: TResult1 | TResult2 | PromiseLike<TResult1 | TResult2>) => void, reject: (reason?: any) => void) => {
             // here the Clean resolves or rejects, regardless of the inner promise
             try {
-                const originalPromiseReturn: TT = await this.innerPromise;
-                if (!this.config.isSuccess(originalPromiseReturn)) {
-                        console.log('rescuing')
-                        if (!this.rescue()) {
+                const innerPromiseReturn: TT = await this.innerPromise;
+                if (!this._config.isSuccess(innerPromiseReturn)) {
+                        if (!await this.rescue()) {
                             await onrejected('reason...'); 
                             reject('Clean rejected...');
                             return;
                         }
                     }
-                    await onfulfilled(originalPromiseReturn);
-                    resolve(originalPromiseReturn as unknown as TResult1);
+                    await onfulfilled(innerPromiseReturn);
+                    resolve(innerPromiseReturn as unknown as TResult1);
             } catch (innerPromiseError) {
                 await onrejected(innerPromiseError); 
                 console.error('inner promise rejected.');
@@ -42,29 +33,72 @@ class Clean<TT> implements PromiseLike<TT> {
             }
         });
     };
-    constructor(executor, config: CleanConfig) {
-        if (!config?.revert && config?.isRevertable !== false) {
-            throw new Error('Clean must either have a revert method or explicitly state it is irevertable.');
+    constructor(executor: (resolve: (value: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void, config: CleanConfig<TT>) {
+        if (!config?.revert && config?.revertOnError !== false) {
+            throw new Error(`${this.constructor.name} must either have a revert method or explicitly state don't revert on error with revertOnError: false.`);
         }
 
         const innerPromise = new Promise<TT>(executor);
         this.innerPromise = innerPromise;
-        config && (this.config = config);
+        config && (this._config = config);
 
         // default values
-        this.config.isRetryable = this.config?.isRetryable ?? false;
-        this.config.maxRetryAttempts = this.config?.maxRetryAttempts ?? 5;
+        this._config.isRetryable = this._config?.isRetryable ?? false;
+        this._config.maxRetryAttempts = this._config?.maxRetryAttempts ?? 5;
 
-        this.rescue = function() {
-            const shouldRetry = this.config.isRetryable && this.config.retryAttemptsCount < this.config.maxRetryAttempts;
+        // TODO if a Clean is being 'Clean.all'ed then 'revert' might be called twice: once at the Promise.all at Clean.all method (currently line 76), which calls 'this.then' method
+        // TODO and once in 'Clean.all's revert. I don't want the dev to have to make 'revert' idempotent, let's try and make 'revert' be called only once per Clean.
+        this.rescue = async function() {
+            const shouldRetry = this._config.isRetryable && this._config.retryAttemptsCount < this._config.maxRetryAttempts;
             if (shouldRetry) {
                 // try again somehow
                 return; // return something for short circuit
             }
-            const shouldRevert = this.config.revert;
-            if (shouldRevert) {
-                return this.config.revert();
+            if (this._config.revertOnError === false) {
+                return true;
             }
+            const shouldRevert = this._config.revert;
+            if (shouldRevert) {
+                try {
+                    const revertResult = await this._config.revert();
+                    if (revertResult !== false) { // to allow the user stating revert failure if explicitly returning false from revert function. if revert failure fails then whole Clean should reject
+                        // TODO write unit test for the above comment's functionality
+                        return true;
+                    }
+                } catch (revertError) {
+                    console.error('revert error');
+                    console.error(revertError);
+                    return;
+                }
+            }
+            throw new Error('Something unexpected happened in ' + this.constructor.name + ': rescue unintendedly did nothing.');
+        }
+    }
+
+    static async all<T>(values: (Clean<T>)[]): Promise<T[] | void> {
+        function rescueAll() {
+            try {
+                const reversedValues = values.reverse(); // should I work on a pollyfill to make it work on older node versions? I don't think so, if they wanna use Clean let them update
+                // ? should it be sync (for in)? or async(forEach)? maybe something else?
+                
+                reversedValues.forEach(clean => clean._config.revertOnError !== false ? clean._config?.revert() : true);
+                // for (const clean of reversedValues) {
+                //     clean._config.revertOnError !== false ? await clean._config?.revert() : true;
+                // }
+            } catch (revertError) {
+                console.error(`revert error!!!!!!!!!! ${revertError}`); // test
+                throw revertError;
+            }
+        }
+        // if any of 'values' reject, call 'rescue' on all of them:
+        try {
+            const cleanResults = await Promise.all(values);
+            const cleanSuccesses = values.map((clean, i) => clean._config.isSuccess(cleanResults[i])); // TODO test this I'm so tired now lol and consider writing unit test
+            if (cleanSuccesses.some(cleanSuccess => !cleanSuccess)) {
+                rescueAll();
+            }
+        } catch (cleanError) {
+            rescueAll();
         }
     }
 }
@@ -74,12 +108,14 @@ class Clean<TT> implements PromiseLike<TT> {
     const originalValue = 0;
     let variable = 0;
 
-    const addOne = new Clean(
+    const addOne = new Clean<string>(
         (resolve, reject) => {
-            const toReject = true;
+            const toReject = false;
 
             ++variable;
-            // ++variable; // temp to fail isSuccess
+            ++variable; // temp to fail isSuccess
+            ++variable; // temp to fail isSuccess
+            ++variable; // temp to fail isSuccess
             if (toReject) {
                 reject('Couldn\'t do action');
             } else {
@@ -88,33 +124,49 @@ class Clean<TT> implements PromiseLike<TT> {
         },
         {
             revert: () => {
-                variable = originalValue;
+                // variable = originalValue;
+                --variable;
             },
-            isSuccess: function() {
-                return variable === 1;
-            },
+            isSuccess: () => variable === 1,
+            // isSuccess: () => false,
         }
     );
 
-    // const anotherAsyncAction = new Clean((resolve, reject) => {
-    //     resolve('lol');
-    // },
-    // {
-    //     isSuccess: function(promiseResolvedValue) {
-    //         return promiseResolvedValue === 'lol';
-    //     }
-    // });
+    const anotherAsyncAction = new Clean<string>((resolve, reject) => {
+        const rejectThis = false;
+        if (rejectThis) {
+            reject('reject 🙁');
+        } else {
+            resolve('lol 😎');
+        }
+    },
+    {
+        isSuccess: function(promiseResolvedValue) {
+            return promiseResolvedValue === 'lol';
+        },
+        revertOnError: false
+    });
 
-    // addOne
-    //     .then(
-    //         value => console.log(`what value is this? value: ${value}`),
-    //         error => console.warn(`lol this is inner promise onrejected. error: ${error}`)
-    //     )
-    //     .catch(e => console.error(`Clean rejected, Error: '${e}'. How can I do it with async await?`));
+    const thirdAsyncAction = new Clean<string>((resolve, reject) => {
+        const rejectThis = false;
+        if (rejectThis) {
+            reject('reject 🙁 3rd');
+        } else {
+            resolve('lol 😎 3rd');
+        }
+    },
+    {
+        isSuccess: function(promiseResolvedValue) {
+            return promiseResolvedValue === 'lol';
+        },
+        revert: () => {
+            console.log('just log I reverted lollll');
+        }
+    });
 
     try {
-        const value = await addOne;
-        console.log(`what value is this? value: ${value}`);
+        console.log(await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction]));
+        // debugger;
     } catch (e) {
         console.error(`Clean rejected, Error: '${e}'.`);
     }
