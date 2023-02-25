@@ -6,7 +6,8 @@
   "author": "Oded Shimoni",
   "license": "MIT",
   "dependencies": {
-    "tsc": "^2.0.4"
+    "tsc": "^2.0.4",
+    "uuid": "^9.0.0"
   },
   "scripts": {
     "build": "tsc",
