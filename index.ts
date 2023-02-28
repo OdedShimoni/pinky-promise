@@ -31,7 +31,41 @@ const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
 class Clean<TT> implements PromiseLike<TT> {
     private _id: string;
     private _config: CleanConfig<TT>;
-    private _rescue: Function;
+    private _rescue: Function = async function(groupFlag = false) {
+        this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being rescued...`));
+        const shouldRetry = this._config.isRetryable && this._config._retryAttemptsCount < this._config.maxRetryAttempts;
+        if (shouldRetry) {
+            this._retryAttemptsCount++;
+            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being retried for the ${this._retryAttemptsCount} time...`));
+            // return await this; // TODO TESTTT and write unit test
+        }
+        if (this._config.revertOnFailure === false) { // consider adding || !this._config.revert or even just !this._config.revert
+            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is not being reverted because revertOnFailure is set to false, returning true.`));
+            return true;
+        }
+
+        const isPartOfAGroup = !!this.groupContext;
+        if (isPartOfAGroup && !groupFlag) {
+            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} needs to be reverted and is part of a group, skipping revert inside Clean and leaving it to happen as part of the group.`));
+            return true;
+        }
+
+        if (!!this._config.revert) {
+            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being reverted...`));
+            try {
+                const revertResult = await this._config.revert();
+                if (revertResult !== false) { // to allow the user stating revert failure if explicitly returning false from revert function. if revert failure fails then whole Clean should reject
+                    // TODO write unit test for the above comment's functionality
+                    this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} was reverted successfully, returning true.`));
+                    return true;
+                }
+            } catch (revertError) {
+                this._config.logger.error(`Clean with id: ${this._id} failed to revert.`, revertError); // TODO test that 'revertError' is being inserted correctly and not [object Object]
+                return;
+            }
+        }
+        throw new Error('Something unexpected happened in ' + this.constructor.name + ': _rescue unintendedly did nothing.');
+    };
     private _innerPromise: PromiseLike<TT>;
     private _retryAttemptsCount: number = 0;
     groupContext?: CleanGroupContext;
@@ -76,43 +110,6 @@ class Clean<TT> implements PromiseLike<TT> {
 
         this._config.verbose && (this._config.logger.log(`Clean created with id: ${this._id}`, this)); // temp commentation because it is too verbose // ? if I can log the code itself of the executor, it would be easier to understand which Clean this is
 
-        // TODO if a Clean is being 'Clean.all'ed then 'revert' might be called twice: once at the Promise.all at Clean.all method (currently line 76), which calls 'this.then' method
-        // TODO and once in 'Clean.all's revert. I don't want the dev to have to make 'revert' idempotent, let's try and make 'revert' be called only once per Clean.
-        this._rescue = async function(groupFlag = false) {
-            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being rescued...`));
-            const shouldRetry = this._config.isRetryable && this._config._retryAttemptsCount < this._config.maxRetryAttempts;
-            if (shouldRetry) {
-                this._retryAttemptsCount++;
-                this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being retried for the ${this._retryAttemptsCount} time...`));
-                // return await this; // TODO TESTTT and write unit test
-            }
-            if (this._config.revertOnFailure === false) { // consider adding || !this._config.revert or even just !this._config.revert
-                this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is not being reverted because revertOnFailure is set to false, returning true.`));
-                return true;
-            }
-
-            const isPartOfAGroup = !!this.groupContext;
-            if (isPartOfAGroup && !groupFlag) {
-                this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} needs to be reverted and is part of a group, skipping revert inside Clean and leaving it to happen as part of the group.`));
-                return true;
-            }
-
-            if (!!this._config.revert) {
-                this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being reverted...`));
-                try {
-                    const revertResult = await this._config.revert();
-                    if (revertResult !== false) { // to allow the user stating revert failure if explicitly returning false from revert function. if revert failure fails then whole Clean should reject
-                        // TODO write unit test for the above comment's functionality
-                        this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} was reverted successfully, returning true.`));
-                        return true;
-                    }
-                } catch (revertError) {
-                    this._config.logger.error(`Clean with id: ${this._id} failed to revert.`, revertError); // TODO test that 'revertError' is being inserted correctly and not [object Object]
-                    return;
-                }
-            }
-            throw new Error('Something unexpected happened in ' + this.constructor.name + ': _rescue unintendedly did nothing.');
-        }
     }
 
     static async all<T>(cleans: (Clean<T>)[]): Promise<T[] | void> {
@@ -214,8 +211,8 @@ class Clean<TT> implements PromiseLike<TT> {
     },
     {
         successDefinition: function(promiseResolvedValue) {
-            // return promiseResolvedValue === 'lol 😎 3rd';
-            return false; // temp to fail
+            return promiseResolvedValue === 'lol 😎 3rd';
+            // return false; // temp to fail
         },
         revert: () => {
             // throw new Error('revert error LOLL');
