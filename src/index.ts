@@ -44,8 +44,10 @@ class Clean<TT> implements PromiseLike<TT> {
             this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} was retried successfully, returning true.`));
             return true;
         }
-        this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries, leaving in queue for future execution.`));
-        if (queueMode) return;
+        if (queueMode){
+            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries, leaving in queue for future execution.`));
+            return;
+        }
         this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries and we don't work with a queue, reverting...`));
         return this._revert(isExecutedAsPartOfAGroupFlag);
     };
