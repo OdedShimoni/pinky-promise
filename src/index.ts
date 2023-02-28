@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { ordinal } from './ordinal';
 
 interface CleanGroupContext {
     id: string;
@@ -6,7 +7,7 @@ interface CleanGroupContext {
 }
 interface CleanConfig<T> {
     isRetryable?: boolean;
-    successDefinition: (innerPromiseReturn?: T) => boolean; // shouldn't be called before _innerPromise is resolved. TODO write a restriction to not allow it and write a test for it
+    success: (innerPromiseReturn?: T) => boolean; // shouldn't be called before _innerPromise is resolved. TODO write a restriction to not allow it and write a test for it
     revert?: Function;
     revertOnFailure?: boolean;
     maxRetryAttempts?: number;
@@ -21,6 +22,8 @@ interface ILogger {
     info: Function;
 }
 
+const queueMode = true; // TODO get from global config file and add generically to the Clean class
+
 // TODO test this + write unit test
 const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
     get: function(_target, _prop) {
@@ -31,21 +34,45 @@ const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
 class Clean<TT> implements PromiseLike<TT> {
     private _id: string;
     private _config: CleanConfig<TT>;
-    private _rescue: Function = async function(groupFlag = false) {
+    private _innerPromiseExecutor: (resolve: (value?: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void;
+    // private _innerPromise: PromiseLike<TT>;
+    private _attemptsCount: number = 0;
+    private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false) {
         this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being rescued...`));
-        const shouldRetry = this._config.isRetryable && this._config._retryAttemptsCount < this._config.maxRetryAttempts;
-        if (shouldRetry) {
-            this._retryAttemptsCount++;
-            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being retried for the ${this._retryAttemptsCount} time...`));
-            // return await this; // TODO TESTTT and write unit test
+        const retriedSuccessfuly = await this._retry();
+        if (retriedSuccessfuly) {
+            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} was retried successfully, returning true.`));
+            return true;
         }
+        this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries, leaving in queue for future execution.`));
+        if (queueMode) return;
+        this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries and we don't work with a queue, reverting...`));
+        return this._revert(isExecutedAsPartOfAGroupFlag);
+    };
+    private _retry = async function() {
+        const shouldRetry = this._config.isRetryable && this._attemptsCount < this._config.maxRetryAttempts;
+        if (!this._config.isRetryable) {
+            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is set as not retryable, skipping retry.`));
+            return;
+        }
+        if (this._attemptsCount >= this._config.maxRetryAttempts) {
+            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} has reached max retry attempts, failed retry/s.`));
+            return;
+        }
+        if (shouldRetry) {
+            this._attemptsCount++;
+            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being retried for the ${ordinal(this._attemptsCount)} time...`));
+            return await this; // TODO write unit test
+        }
+    }
+    private _revert = async function(isExecutedAsPartOfAGroupFlag = false) {
         if (this._config.revertOnFailure === false) { // consider adding || !this._config.revert or even just !this._config.revert
             this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is not being reverted because revertOnFailure is set to false, returning true.`));
             return true;
         }
 
         const isPartOfAGroup = !!this.groupContext;
-        if (isPartOfAGroup && !groupFlag) {
+        if (isPartOfAGroup && !isExecutedAsPartOfAGroupFlag) {
             this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} needs to be reverted and is part of a group, skipping revert inside Clean and leaving it to happen as part of the group.`));
             return true;
         }
@@ -64,18 +91,16 @@ class Clean<TT> implements PromiseLike<TT> {
                 return;
             }
         }
-        throw new Error('Something unexpected happened in ' + this.constructor.name + ': _rescue unintendedly did nothing.');
-    };
-    private _innerPromise: PromiseLike<TT>;
-    private _retryAttemptsCount: number = 0;
+    }
     groupContext?: CleanGroupContext;
     // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
     then: <TResult1 = TT, TResult2 = never>(onfulfilled?: ((value: TT) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null) => Promise<TResult1 | TResult2> = function(onfulfilled, onrejected) {
         return new Promise(async <TResult1 = TT, TResult2 = never>(resolve: (value: TResult1 | TResult2 | PromiseLike<TResult1 | TResult2>) => void, reject: (reason?: any) => void) => {
             // here the Clean resolves or rejects, regardless of the inner promise
             try {
-                const innerPromiseReturn: TT = await this._innerPromise;
-                if (!this._config.successDefinition(innerPromiseReturn)) {
+                const innerPromise = new Promise<TT>(this._innerPromiseExecutor);
+                const innerPromiseReturn: TT = await innerPromise;
+                if (!this._config.success(innerPromiseReturn)) {
                     if (!await this._rescue()) {
                         await onrejected(`Clean with id: ${this._id} rescue failed.`); 
                         // reject(`Clean with id: ${this._id} rescue failed.`);
@@ -98,12 +123,13 @@ class Clean<TT> implements PromiseLike<TT> {
 
         this._id = uuidv4();
 
-        const _innerPromise = new Promise<TT>(executor);
-        this._innerPromise = _innerPromise;
+        // const _innerPromise = new Promise<TT>(executor);
+        this._innerPromiseExecutor = executor;
+        // this._innerPromise = _innerPromise;
 
         config && (this._config = config);
         // default values
-        this._config.isRetryable = this._config?.isRetryable ?? false;
+        this._config.isRetryable = this._config?.isRetryable ?? true;
         this._config.verbose = this._config?.verbose ?? false;
         this._config.maxRetryAttempts = this._config?.maxRetryAttempts ?? 5;
         this._config.logger = config?.logger ?? allPropertiesAreEmptyFunctions;
@@ -117,13 +143,14 @@ class Clean<TT> implements PromiseLike<TT> {
 
         const verbose = true; // temp, get from global config when available
         const logger = console; // temp, get from global config when available
-        verbose && (console.log(`Clean.all with id: ${id} is being executed...`));
-        function _rescueAll() {
+
+        verbose && (logger.log(`Clean.all with id: ${id} is being executed...`));
+        function revertAll() {
             try {
-                const reversedCleans = cleans.reverse(); // should I work on a pollyfill to make it work on older node versions? I don't think so, if they wanna use Clean let them update
-                // ? should it be sync (for in)? or async(forEach)? maybe something else? perhaps user will be able to config either sync or async execution
+                const reversedCleans = cleans.reverse();
                 
-                reversedCleans.forEach(clean => clean._config.revertOnFailure !== false ? clean._rescue(true) : true);
+                // ? should it be sync (for in)? or async(forEach)? maybe something else? perhaps user will be able to config either sync or async execution
+                reversedCleans.forEach(clean => clean._config.revertOnFailure !== false ? clean._revert(true) : true);
                 // for (const clean of reversedCleans) {
                 //     clean._config.revertOnFailure !== false ? await clean._rescue(true) : true;
                 // }
@@ -141,14 +168,18 @@ class Clean<TT> implements PromiseLike<TT> {
                 };
             }
             const cleanResults = await Promise.all(cleans);
-            const cleanSuccesses = cleans.map((clean, i) => clean._config.successDefinition(cleanResults[i])); // TODO test this I'm so tired now lol and consider writing unit test
+            const cleanSuccesses = cleans.map((clean, i) => clean._config.success(cleanResults[i])); // TODO write unit test
             if (cleanSuccesses.some(cleanSuccess => !cleanSuccess)) {
-                _rescueAll();
+                if (!queueMode) {
+                    revertAll();
+                }
             } else {
                 return cleanResults;
             }
         } catch (cleanError) {
-            _rescueAll();
+            if (!queueMode) {
+                revertAll();
+            }
         }
     }
 }
@@ -163,9 +194,9 @@ class Clean<TT> implements PromiseLike<TT> {
             const toReject = false;
 
             ++variable;
-            // ++variable; // temp to fail successDefinition
-            // ++variable; // temp to fail successDefinition
-            // ++variable; // temp to fail successDefinition
+            // ++variable; // temp to fail success
+            // ++variable; // temp to fail success
+            // ++variable; // temp to fail success
             if (toReject) {
                 reject('Couldn\'t do action');
             } else {
@@ -177,8 +208,9 @@ class Clean<TT> implements PromiseLike<TT> {
                 // variable = originalValue;
                 --variable;
             },
-            successDefinition: () => variable === 1,
-            // successDefinition: () => false,
+            // success: () => variable === 1,
+            success: () => variable === 2, // so bad cuz not idempotent but it's to test the retry
+            // success: () => false,
             logger: console,
             verbose: true,
         }
@@ -193,7 +225,7 @@ class Clean<TT> implements PromiseLike<TT> {
         }
     },
     {
-        successDefinition: function(promiseResolvedValue) {
+        success: function(promiseResolvedValue) {
             return promiseResolvedValue === 'lol 😎';
         },
         revertOnFailure: false,
@@ -210,7 +242,7 @@ class Clean<TT> implements PromiseLike<TT> {
         }
     },
     {
-        successDefinition: function(promiseResolvedValue) {
+        success: function(promiseResolvedValue) {
             return promiseResolvedValue === 'lol 😎 3rd';
             // return false; // temp to fail
         },
@@ -231,7 +263,7 @@ class Clean<TT> implements PromiseLike<TT> {
         }
     },
     {
-        successDefinition: function(promiseResolvedValue) {
+        success: function(promiseResolvedValue) {
             return promiseResolvedValue === 'lol 😎 4th';
             // return false; // temp to fail
         },
@@ -243,8 +275,8 @@ class Clean<TT> implements PromiseLike<TT> {
     });
 
     try {
-        // console.log(await addOne);
-        console.log(await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction]));
+        console.log(await addOne);
+        // console.log(await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction]));
         // debugger;
     } catch (e) {
         console.error(`Clean rejected, Error: '${e}'.`);
