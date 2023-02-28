@@ -22,7 +22,7 @@ interface ILogger {
     info: Function;
 }
 
-const queueMode = true; // TODO get from global config file and add generically to the Clean class
+const queueMode = false; // TODO get from global config file and add generically to the Clean class
 
 // TODO test this + write unit test
 const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
@@ -35,19 +35,21 @@ class Clean<TT> implements PromiseLike<TT> {
     private _id: string;
     private _config: CleanConfig<TT>;
     private _innerPromiseExecutor: (resolve: (value?: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void;
+    private _innerPromiseLastResolvedValue: TT;
     // private _innerPromise: PromiseLike<TT>;
     private _attemptsCount: number = 0;
     private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false) {
         this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being rescued...`));
-        const retriedSuccessfuly = await this._retry();
+        const retriedSuccessfuly = await this._retry() && await this._config.success(this._innerPromiseLastResolvedValue);
         if (retriedSuccessfuly) {
             this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} was retried successfully, returning true.`));
             return true;
         }
-        if (queueMode){
+        if (queueMode) {
             this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries, leaving in queue for future execution.`));
             return;
         }
+        // for some reason it calls revert for every retry attempt
         this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries and we don't work with a queue, reverting...`));
         return this._revert(isExecutedAsPartOfAGroupFlag);
     };
@@ -101,16 +103,16 @@ class Clean<TT> implements PromiseLike<TT> {
             // here the Clean resolves or rejects, regardless of the inner promise
             try {
                 const innerPromise = new Promise<TT>(this._innerPromiseExecutor);
-                const innerPromiseReturn: TT = await innerPromise;
-                if (!this._config.success(innerPromiseReturn)) {
+                this._innerPromiseLastResolvedValue = await innerPromise;
+                if (!this._config.success(this._innerPromiseLastResolvedValue)) {
                     if (!await this._rescue()) {
                         await onrejected(`Clean with id: ${this._id} rescue failed.`); 
                         // reject(`Clean with id: ${this._id} rescue failed.`);
                         return;
                     }
                 }
-                await onfulfilled(innerPromiseReturn);
-                resolve(innerPromiseReturn as unknown as TResult1);
+                await onfulfilled(this._innerPromiseLastResolvedValue);
+                resolve(this._innerPromiseLastResolvedValue as unknown as TResult1);
             } catch (innerPromiseError) {
                 await onrejected(innerPromiseError); 
                 // reject(`Clean with id: ${this._id} inner promise error. ${innerPromiseError}`);
@@ -277,8 +279,8 @@ class Clean<TT> implements PromiseLike<TT> {
     });
 
     try {
-        console.log(await addOne);
-        // console.log(await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction]));
+        // console.log(await addOne);
+        console.log(await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction]));
         // debugger;
     } catch (e) {
         console.error(`Clean rejected, Error: '${e}'.`);
