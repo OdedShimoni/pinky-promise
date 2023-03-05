@@ -6,6 +6,7 @@
   "author": "Oded Shimoni",
   "license": "MIT",
   "dependencies": {
+    "bullmq": "^3.10.0",
     "tsc": "^2.0.4",
     "uuid": "^9.0.0"
   },
