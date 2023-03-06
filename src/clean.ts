@@ -113,6 +113,9 @@ export class Clean<TT> implements PromiseLike<TT> {
         if (!config?.revert && config?.revertOnFailure !== false) {
             throw new Error(`${this.constructor.name} must either have a revert method or explicitly state don't revert on error with revertOnFailure: false.`);
         }
+        if (!config?.success) {
+            throw new Error(`${this.constructor.name} must have a success method to know if it succeeded.`);
+        }
 
         this._id = uuidv4();
 
