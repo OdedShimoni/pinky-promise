@@ -1,16 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { CleanGroupContext, CleanUserConfig } from "./contract/clean.contract";
-import { Bull } from "./implementations/queue/bull.implementation";
 import { ordinal } from "./ordinal";
-
-const queueMode = true; // TODO get from global config file and add generically to the Clean class
-const queueConfig = {
-    host: "localhost",
-    port: 6379,
-    password: "",
-}; // TODO get from global config file and add generically to the Clean class
-
-const queue = new Bull(queueConfig); // temp + use with dependency injection
 
 // TODO test this + write unit test
 const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
@@ -32,12 +22,8 @@ export class Clean<TT> implements PromiseLike<TT> {
             this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} was retried successfully, returning true.`));
             return true;
         }
-        if (queueMode) {
-            this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries, leaving in queue for future execution.`));
-            return;
-        }
         // for some reason it calls revert for every retry attempt
-        this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries and we don't work with a queue, reverting...`));
+        this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} couldn't success even after its retries, reverting...`));
         return this._revert(isExecutedAsPartOfAGroupFlag);
     };
     private _retry = async function() {
@@ -100,7 +86,6 @@ export class Clean<TT> implements PromiseLike<TT> {
             return this._innerPromiseLastResolvedValue;
             // TODO try make these 3 as atomic as possible
             // await onfulfilled(this._innerPromiseLastResolvedValue); // TODO add to the 'then' method
-            // message && (await queue.commitMessage(message)); // TODO add to the 'then' method
             // resolve(this._innerPromiseLastResolvedValue as unknown as TResult1); // TODO add to the 'then' method
         } catch (innerPromiseError) {
             // await onrejected(innerPromiseError);  // TODO add to the 'then' method
@@ -114,37 +99,14 @@ export class Clean<TT> implements PromiseLike<TT> {
     then: <TResult1 = TT, TResult2 = never>(onfulfilled?: ((value: TT) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null) => Promise<TResult1 | TResult2> = function(onfulfilled, onrejected) {
         return new Promise(async <TResult1 = TT, TResult2 = never>(resolve: (value: TResult1 | TResult2 | PromiseLike<TResult1 | TResult2>) => void, reject: (reason?: any) => void) => {
             // here the Clean resolves or rejects, regardless of the inner promise
-            let message;
-            // insert to queue:
-            if (queueMode) {
-                await queue.init(); // TODO get out of here
-                this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being inserted to queue...`));
-                // TODO test
-                message = await queue.sendMessage(this._id, { // TODO generic queue
-                    executor: this._innerPromiseExecutor.toString(),
-                    // moduleExports: module.exports, // commenting to see if it prevents weird bull error
-                    // moduleChildren: module.children, // circular dependency
-                });
-                const messageBatch = await queue.getMessageBatch(5); // TODO not 5 but get from config
-                // TODO what do I do if the Clean itself isn't in the threshold? should I limit threshold and simply return all queue?
-                // TODO add mechanism for synchronous execution of messages
-                // if yes, what if I take all messages and in the middle the app crashes? it should be fine because messages should be commited only after execution (at least once)
-                // this kind of limits the queue usage to only 1 machine, do I not kind of mess with the purpose of a queue? But the queue here is mainly to prevent Cleans from not executing due to an app crash
-                const messageBatchExecutors = messageBatch
-                    .filter(executor => !!executor)
-                    .map(message => message?.data?.executor); // TODO generic queue
-                const messageBatchExecutionPromises = messageBatchExecutors.map(this._failSafeExecute);
-                const messageReturnValues = await Promise.all(messageBatchExecutionPromises);
-                console.log(messageReturnValues); // what now?
-            } else {
-                const isSuccess = await this._failSafeExecute();
-                if (!isSuccess) {
-                    this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} failed, returning false.`));
-                    await onrejected(`Clean with id: ${this._id} failed.`); 
-                    // reject(`Clean with id: ${this._id} failed.`); // TODO do I need this?
-                    return false;
-                }
+            const isSuccess = await this._failSafeExecute();
+            if (!isSuccess) {
+                this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} failed, returning false.`));
+                await onrejected(`Clean with id: ${this._id} failed.`); 
+                // reject(`Clean with id: ${this._id} failed.`); // TODO do I need this?
+                return false;
             }
+            
         });
     };
     constructor(executor: (resolve: (value: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void, config: CleanUserConfig<TT>) {
@@ -179,7 +141,6 @@ export class Clean<TT> implements PromiseLike<TT> {
         function revertAll() {
             try {
                 const reversedCleans = cleans.reverse();
-                
                 // ? should it be sync (for in)? or async(forEach)? maybe something else? perhaps user will be able to config either sync or async execution
                 reversedCleans.forEach(clean => clean._config.revertOnFailure !== false ? clean._revert(true) : true);
                 // for (const clean of reversedCleans) {
@@ -201,18 +162,12 @@ export class Clean<TT> implements PromiseLike<TT> {
             const cleanResults = await Promise.all(cleans);
             const cleanSuccesses = cleans.map((clean, i) => clean._config.success(cleanResults[i])); // TODO write unit test
             if (cleanSuccesses.some(cleanSuccess => !cleanSuccess)) {
-                if (!queueMode) {
-                    revertAll();
-                }
+                revertAll();
             } else {
                 return cleanResults;
             }
         } catch (cleanError) {
-            if (!queueMode) {
-                revertAll();
-            }
+            revertAll();
         }
     }
 }
-// TODO close the queue connection
-// TODO if a clean is executed from the queue, it can't be debugged because the code executed comes from the queue and not the machine's memory. So current job should be processed from memory and not from queue.

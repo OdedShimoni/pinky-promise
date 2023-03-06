@@ -1,7 +1,6 @@
-import { Clean } from './clean';
+import { Clean } from "./clean";
 
 (async function() {
-
     const originalValue = 0;
     let variable = 0;
 
@@ -93,12 +92,12 @@ import { Clean } from './clean';
     try {
         // console.log(await addOne);
         console.log(await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction]));
+        // console.log(Clean.allSync([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])); // meh
         // debugger;
     } catch (e) {
         console.error(`Clean rejected, Error: '${e}'.`);
     }
 })();
-
 // TODO write test that when Clean runs in a group then all cleans receive a groupContext and when run alone it is empty
 // TODO think of edge cases: e.g. when queue gets filled up with tons of messages. Will a single pinky process them lifo? this means it will take hours and the original promise won't be processed until the end. Maybe an execution needs to be limited to extra 50 messages from the queue, and the number will be configurable
 // TODO consider when working in queue mode, handling 'if retry attempts is less than the total retry attempts configed' to the queue's functionality, since I guess there is one in every queue (in Bull there is)
