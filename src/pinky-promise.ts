@@ -136,9 +136,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
 
         this._id = uuidv4();
 
-        // const _innerPromise = new Promise<TT>(executor);
         this._innerPromiseExecutor = executor;
-        // this._innerPromise = _innerPromise;
 
         config && (this._config = config);
         // default values
@@ -150,7 +148,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         verbose && (logger.log(`PinkyPromise created with id: ${this._id}`, this));
     }
 
-    static async all<T>(cleans: (PinkyPromise<T>)[], isSequential = false): Promise<T[] | void> {
+    static async all<T>(pinkyPromises: (PinkyPromise<T>)[], isSequential = false): Promise<T[] | void> {
         const id = uuidv4();
 
         const { verbose, logger } = PinkyPromise._globalConfig; // temp, get from global config when available
@@ -158,52 +156,55 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         verbose && (logger.log(`PinkyPromise.all with id: ${id} is being executed...`));
         function revertAll() {
             try {
-                const reversedPinkyPromises = cleans.reverse();
+                const reversedPinkyPromises = pinkyPromises.reverse();
                 // TODO what if revert throws an error? should I catch it and log it?
-                reversedPinkyPromises.forEach(clean => clean._config.revertOnFailure !== false ? clean._revert(true) : true);
+                reversedPinkyPromises.forEach(pinkyPromise => pinkyPromise._config.revertOnFailure !== false ? pinkyPromise._revert(true) : true);
                 // Revert will always be concurrent even if all is sequential, because I can't see a reason to revert sequentially
                 // But code is still here if we ever see one:
-                // for (const clean of reversedPinkyPromises) {
-                //     clean._config.revertOnFailure !== false ? await clean._rescue(true) : true;
+                // for (const pinkyPromise of reversedPinkyPromises) {
+                //     pinkyPromise._config.revertOnFailure !== false ? await pinkyPromise._rescue(true) : true;
                 // }
             } catch (revertError) {
                 logger.error(`PinkyPromise.all with id:${id} revert error! ${revertError}`);
             }
         }
-        // if any of 'cleans' reject, call '_rescue' on all of them:
+        // if any of 'pinkyPromises' reject, call '_rescue' on all of them:
         try {
-            const cleanAddToGroupContext = (clean: PinkyPromise<T>) => {
-                clean.groupContext = {
+            const pinkyPromiseAddToGroupContext = (pinkyPromise: PinkyPromise<T>) => {
+                pinkyPromise.groupContext = {
                     id,
-                    cleans,
+                    pinkyPromises,
                     isSequential,
                 };
             };
-            const cleanAddToGroupContextAll = (cleans: PinkyPromise<T>[]) => cleans.map(cleanAddToGroupContext);
-            await Promise.all(cleanAddToGroupContextAll(cleans));
+            const pinkyPromiseAddToGroupContextAll = (pinkyPromises: PinkyPromise<T>[]) => pinkyPromises.map(pinkyPromiseAddToGroupContext);
+            await Promise.all(pinkyPromiseAddToGroupContextAll(pinkyPromises));
+
             // TODO write tests retries also happen sequentially
-            const cleanResults = isSequential ? await awaitAllSequentially(cleans.slice().reverse()) : await Promise.all(cleans);
+            const pinkyPromiseResults = isSequential ? await awaitAllSequentially(pinkyPromises.slice().reverse()) : await Promise.all(pinkyPromises);
             // using slice to reverse immutably
             // reverse as an optimization for the sequential case to avoid re-arranging the array every time
-            const cleanSuccesses = cleans.map((clean, i) => clean._config.success(cleanResults[i])); // TODO write unit test
-            if (cleanSuccesses.some(cleanSuccess => !cleanSuccess)) {
+            
+            const pinkyPromiseSuccesses = pinkyPromises.map((pinkyPromise, i) => pinkyPromise._config.success(pinkyPromiseResults[i])); // TODO write unit test
+            if (pinkyPromiseSuccesses.some(pinkyPromiseSuccess => !pinkyPromiseSuccess)) {
                 revertAll();
             } else {
-                return cleanResults;
+                return pinkyPromiseResults;
             }
-        } catch (cleanError) {
+        } catch (e) {
+            logger.error(`PinkyPromise.all with id:${id} pinkyPromise error! ${e.message}`, { stack: e.stack }); // TODO test the error is logged nicely
             revertAll();
         }
 
-        // It will work because clean isn't starting to execute as soon as it is created, like a promise, but only when it is awaited
-        async function awaitAllSequentially(cleans: PromiseLike<any>[], results: any[] = []): Promise<any[]> {
-            if (cleans?.length === 0) {
+        // It will work because pinkyPromise isn't starting to execute as soon as it is created, like a promise, but only when it is awaited
+        async function awaitAllSequentially(pinkyPromises: PromiseLike<any>[], results: any[] = []): Promise<any[]> {
+            if (pinkyPromises?.length === 0) {
                 return Promise.resolve(results);
             }
-            const current = cleans.pop();
+            const current = pinkyPromises.pop();
             const currentResult = await current; // if it rejects or has an error?
             results.push(currentResult);
-            return await awaitAllSequentially(cleans, results);
+            return await awaitAllSequentially(pinkyPromises, results);
         }
     }
 }

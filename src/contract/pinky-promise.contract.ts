@@ -4,7 +4,7 @@ import { ILogger } from './logger.contract';
 
 export interface PinkyPromiseGroupContext {
     id: string;
-    cleans: PinkyPromise<any>[];
+    pinkyPromises: PinkyPromise<any>[];
     isSequential: boolean;
 }
 export interface PinkyPromiseUserConfig<T> {

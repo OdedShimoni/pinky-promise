@@ -1,7 +1,7 @@
 {
-  "name": "clean-promise",
+  "name": "pinky-promise",
   "version": "0.0.1-beta",
-  "description": "Work clean",
+  "description": "A promise you can trust",
   "main": "index.js",
   "author": "Oded Shimoni",
   "license": "MIT",
