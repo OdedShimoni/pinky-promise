@@ -9,7 +9,7 @@ export interface PinkyPromiseGroupContext {
 }
 export interface PinkyPromiseUserConfig<T> {
     isRetryable?: boolean;
-    success: (innerPromiseReturn?: T) => boolean; // shouldn't be called before _innerPromise is resolved. TODO write a restriction to not allow it and write a test for it
+    success: (innerPromiseReturn?: T) => boolean; // shouldn't be called before _innerPromise is resolved. TODO write a restriction to not allow it and write a test for it. Maybe the test is enough?
     revert?: Function;
     revertOnFailure?: boolean;
     maxRetryAttempts?: number;

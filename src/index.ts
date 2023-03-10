@@ -8,7 +8,7 @@ PinkyPromise.config({
     const originalValue = 0;
     let variable = 0;
 
-    const addOne = new PinkyPromise<string>(
+    const addOne = new PinkyPromise<any>(
         (resolve, reject) => {
             const toReject = false;
 
@@ -19,7 +19,7 @@ PinkyPromise.config({
             if (toReject) {
                 reject('Couldn\'t do action');
             } else {
-                resolve('yay');
+                resolve({ yay: 'yay' });
             }
         },
         {
@@ -94,10 +94,11 @@ PinkyPromise.config({
     });
 
     try {
-        // console.log(await addOne);
-        console.log(
-            await PinkyPromise.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])
-        );
+        console.log(await addOne);
+        // console.log(await fourthAsyncAction);
+        // console.log(
+        //     await PinkyPromise.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction], false)
+        // );
         // console.log(PinkyPromise.allSync([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])); // meh
         // debugger;
     } catch (e) {

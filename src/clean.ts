@@ -26,15 +26,19 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     private _attemptsCount: number = 0;
     private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false) {
         const { verbose, logger } = PinkyPromise._globalConfig;
-        verbose && (logger.log(`PinkyPromise with id: ${this._id} is being rescued...`));
+        verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed because it has resolved with (${JSON.stringify(this._innerPromiseLastResolvedValue)}) and is beginning fail safe logic...`));
         const retriedSuccessfuly = await this._retry() && await this._config.success(this._innerPromiseLastResolvedValue);
         if (retriedSuccessfuly) {
             verbose && (logger.log(`PinkyPromise with id: ${this._id} was retried successfully, returning true.`));
             return true;
         }
-        // for some reason it calls revert for every retry attempt
-        verbose && (logger.log(`PinkyPromise with id: ${this._id} couldn't success even after its retries, reverting...`));
-        return this._revert(isExecutedAsPartOfAGroupFlag);
+        // for some reason it calls revert for every retry attempt so I patched it:
+        const finishedRetries = this._attemptsCount >= this._config.maxRetryAttempts;
+        if (finishedRetries) {
+            verbose && (logger.log(`PinkyPromise with id: ${this._id} couldn't success even after its retries, reverting...`));
+            return this._revert(isExecutedAsPartOfAGroupFlag);
+        }
+        throw new Error(`Unknown error: PinkyPromise with id: ${this._id} couldn't be rescued.`);
     };
     private _retry = async function() {
         const { verbose, logger } = PinkyPromise._globalConfig;
