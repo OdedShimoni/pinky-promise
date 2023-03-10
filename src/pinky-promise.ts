@@ -175,7 +175,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             const cleanAddToGroupContextAll = (cleans: PinkyPromise<T>[]) => cleans.map(cleanAddToGroupContext);
             await Promise.all(cleanAddToGroupContextAll(cleans));
             // TODO write tests retries also happen sequentially
-            const cleanResults = isSequential ? await promiseAllSequentiallyRecursive(cleans.slice().reverse()) : await Promise.all(cleans);
+            const cleanResults = isSequential ? await awaitAllSequentially(cleans.slice().reverse()) : await Promise.all(cleans);
             // using slice to reverse immutably
             // reverse as an optimization for the sequential case to avoid re-arranging the array every time
             const cleanSuccesses = cleans.map((clean, i) => clean._config.success(cleanResults[i])); // TODO write unit test
@@ -189,14 +189,14 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         }
 
         // It will work because clean isn't starting to execute as soon as it is created, like a promise, but only when it is awaited
-        async function promiseAllSequentiallyRecursive(cleans: PromiseLike<any>[], results: any[] = []): Promise<any[]> {
+        async function awaitAllSequentially(cleans: PromiseLike<any>[], results: any[] = []): Promise<any[]> {
             if (cleans?.length === 0) {
                 return Promise.resolve(results);
             }
             const current = cleans.pop();
             const currentResult = await current; // if it rejects or has an error?
             results.push(currentResult);
-            return await promiseAllSequentiallyRecursive(cleans, results);
+            return await awaitAllSequentially(cleans, results);
         }
     }
 }
