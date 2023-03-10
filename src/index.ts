@@ -3,6 +3,7 @@ PinkyPromise.config({
     logger: console,
     verbose: true,
 });
+// PinkyPromise.config();
 
 (async function() {
     const originalValue = 0;
@@ -94,12 +95,11 @@ PinkyPromise.config({
     });
 
     try {
-        console.log(await addOne);
+        // console.log(await addOne);
         // console.log(await fourthAsyncAction);
-        // console.log(
-        //     await PinkyPromise.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction], false)
-        // );
-        // console.log(PinkyPromise.allSync([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])); // meh
+        console.log(
+            await PinkyPromise.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction], false)
+        );
         // debugger;
     } catch (e) {
         console.error(`PinkyPromise rejected, Error: '${e}'.`);

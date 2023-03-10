@@ -15,8 +15,11 @@ const defaultGlobalConfig: PinkyPromiseGlobalConfig = {
 }
 
 export class PinkyPromise<TT> implements PromiseLike<TT> {
-    private static _globalConfig: PinkyPromiseGlobalConfig = defaultGlobalConfig;
+    private static _globalConfig: PinkyPromiseGlobalConfig;
     public static config(config: PinkyPromiseGlobalConfig = defaultGlobalConfig) {
+        if (PinkyPromise?._globalConfig) {
+            throw new Error('PinkyPromise is already configured, you can only configure it once.');
+        }
         this._globalConfig = config;
     }
     private _id: string;
@@ -121,6 +124,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         });
     };
     constructor(executor: (resolve: (value: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void, config: PinkyPromiseUserConfig<TT>) {
+        if (!PinkyPromise._globalConfig) {
+            throw new Error(`PinkyPromise is not configured. Please call PinkyPromise.config before creating a PinkyPromise.`);
+        }
         if (!config?.revert && config?.revertOnFailure !== false) {
             throw new Error(`${this.constructor.name} must either have a revert method or explicitly state don't revert on error with revertOnFailure: false.`);
         }
