@@ -1,10 +1,14 @@
-import { Clean } from "./clean";
+import { PinkyPromise } from "./clean";
+PinkyPromise.config({
+    logger: console,
+    verbose: true,
+});
 
 (async function() {
     const originalValue = 0;
     let variable = 0;
 
-    const addOne = new Clean<string>(
+    const addOne = new PinkyPromise<string>(
         (resolve, reject) => {
             const toReject = false;
 
@@ -26,13 +30,11 @@ import { Clean } from "./clean";
             // success: () => variable === 1,
             success: () => variable === 2, // so bad cuz not idempotent but it's to test the retry
             // success: () => false,
-            logger: console, // TODO get from global config which has to be js file / object (as dotenv did) to allow functions when defining 'logger'
-            verbose: true, // TODO get from global config which has to be js file / object (as dotenv did) to allow functions when defining 'logger'
         }
     );
 
     let variableTwo = 0;
-    const anotherAsyncAction = new Clean<string>((resolve, reject) => {
+    const anotherAsyncAction = new PinkyPromise<string>((resolve, reject) => {
         const rejectThis = false;
         if (rejectThis) {
             reject('reject 🙁');
@@ -52,11 +54,9 @@ import { Clean } from "./clean";
             // return promiseResolvedValue === 'lol 😎';
         },
         revertOnFailure: false,
-        logger: console, // TODO get from global config which has to be js file / object (as dotenv did) to allow functions when defining 'logger'
-        verbose: true, // TODO get from global config which has to be js file / object (as dotenv did) to allow functions when defining 'logger'
     });
 
-    const thirdAsyncAction = new Clean<string>((resolve, reject) => {
+    const thirdAsyncAction = new PinkyPromise<string>((resolve, reject) => {
         const rejectThis = false;
         if (rejectThis) {
             reject('reject 🙁 3rd');
@@ -73,11 +73,9 @@ import { Clean } from "./clean";
             // throw new Error('revert error LOLL');
             console.log('reverted 3rd');
         },
-        logger: console, // TODO get from global config which has to be js file / object (as dotenv did) to allow functions when defining 'logger'
-        verbose: true, // TODO get from global config which has to be js file / object (as dotenv did) to allow functions when defining 'logger'
     });
 
-    const fourthAsyncAction = new Clean<string>((resolve, reject) => {
+    const fourthAsyncAction = new PinkyPromise<string>((resolve, reject) => {
         const rejectThis = false;
         if (rejectThis) {
             reject('reject 🙁 4th');
@@ -87,25 +85,22 @@ import { Clean } from "./clean";
     },
     {
         success: function(promiseResolvedValue) {
-            // return promiseResolvedValue === 'lol 😎 4th';
-            return false; // temp to fail
+            return promiseResolvedValue === 'lol 😎 4th';
+            // return false; // temp to fail
         },
         revert: () => {
             console.log('reverted 4th');
         },
-        logger: console, // TODO get from global config which has to be js file / object (as dotenv did) to allow functions when defining 'logger'
-        verbose: true, // TODO get from global config which has to be js file / object (as dotenv did) to allow functions when defining 'logger'
     });
 
     try {
         // console.log(await addOne);
         console.log(
-            await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])
+            await PinkyPromise.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])
         );
-        // console.log(Clean.allSync([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])); // meh
+        // console.log(PinkyPromise.allSync([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])); // meh
         // debugger;
     } catch (e) {
-        console.error(`Clean rejected, Error: '${e}'.`);
+        console.error(`PinkyPromise rejected, Error: '${e}'.`);
     }
 })();
-// TODO write test that when Clean runs in a group then all cleans receive a groupContext and when run alone it is empty
