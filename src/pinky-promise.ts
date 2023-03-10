@@ -32,7 +32,8 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             verbose && (logger.log(`PinkyPromise with id: ${this._id} was retried successfully, returning true.`));
             return true;
         }
-        // for some reason it calls revert for every retry attempt so I patched it:
+        
+        // it calls revert for every retry attempt so I patched it:
         const finishedRetries = this._attemptsCount >= this._config.maxRetryAttempts;
         if (finishedRetries) {
             verbose && (logger.log(`PinkyPromise with id: ${this._id} couldn't success even after its retries, reverting...`));
