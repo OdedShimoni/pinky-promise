@@ -1,4 +1,4 @@
-import { PinkyPromise } from "./clean";
+import { PinkyPromise } from "./pinky-promise";
 PinkyPromise.config({
     logger: console,
     verbose: true,

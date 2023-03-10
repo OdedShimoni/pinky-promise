@@ -1,5 +1,5 @@
 
-import { PinkyPromise } from '../clean';
+import { PinkyPromise } from '../pinky-promise';
 import { ILogger } from './logger.contract';
 
 export interface PinkyPromiseGroupContext {
