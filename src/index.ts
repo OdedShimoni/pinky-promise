@@ -100,7 +100,7 @@ import { Clean } from "./clean";
     try {
         // console.log(await addOne);
         console.log(
-            await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction], true)
+            await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])
         );
         // console.log(Clean.allSync([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])); // meh
         // debugger;
