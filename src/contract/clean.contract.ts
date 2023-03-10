@@ -5,6 +5,7 @@ import { ILogger } from './logger.contract';
 export interface CleanGroupContext {
     id: string;
     cleans: Clean<any>[];
+    isSequential: boolean;
 }
 export interface CleanUserConfig<T> {
     isRetryable?: boolean;

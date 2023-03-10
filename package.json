@@ -6,7 +6,6 @@
   "author": "Oded Shimoni",
   "license": "MIT",
   "dependencies": {
-    "tsc": "^2.0.4",
     "uuid": "^9.0.0"
   },
   "scripts": {
@@ -17,6 +16,7 @@
   },
   "devDependencies": {
     "@types/node": "^18.13.0",
+    "tsc": "^2.0.4",
     "typescript": "^4.9.5"
   }
 }

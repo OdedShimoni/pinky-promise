@@ -31,17 +31,25 @@ import { Clean } from "./clean";
         }
     );
 
+    let variableTwo = 0;
     const anotherAsyncAction = new Clean<string>((resolve, reject) => {
         const rejectThis = false;
         if (rejectThis) {
             reject('reject 🙁');
         } else {
-            resolve('lol 😎');
+            setTimeout(
+                function() {
+                    ++variableTwo; 
+                    resolve('lol 😎')
+                    // resolve('toFail')
+                }
+            , 1000);
         }
     },
     {
         success: function(promiseResolvedValue) {
-            return promiseResolvedValue === 'lol 😎';
+            return variableTwo === 2; // to cause retry
+            // return promiseResolvedValue === 'lol 😎';
         },
         revertOnFailure: false,
         logger: console, // TODO get from global config which has to be js file / object (as dotenv did) to allow functions when defining 'logger'
@@ -79,8 +87,8 @@ import { Clean } from "./clean";
     },
     {
         success: function(promiseResolvedValue) {
-            return promiseResolvedValue === 'lol 😎 4th';
-            // return false; // temp to fail
+            // return promiseResolvedValue === 'lol 😎 4th';
+            return false; // temp to fail
         },
         revert: () => {
             console.log('reverted 4th');
@@ -91,7 +99,9 @@ import { Clean } from "./clean";
 
     try {
         // console.log(await addOne);
-        console.log(await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction]));
+        console.log(
+            await Clean.all([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction], true)
+        );
         // console.log(Clean.allSync([addOne, anotherAsyncAction, thirdAsyncAction, fourthAsyncAction])); // meh
         // debugger;
     } catch (e) {

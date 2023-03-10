@@ -27,7 +27,13 @@ export class Clean<TT> implements PromiseLike<TT> {
         return this._revert(isExecutedAsPartOfAGroupFlag);
     };
     private _retry = async function() {
-        const shouldRetry = this._config.isRetryable && this._attemptsCount < this._config.maxRetryAttempts;
+        // const isPartOfAGroup = !!this.groupContext;
+        // if (isPartOfAGroup && this.groupContext.isSequential && !isExecutedAsPartOfAGroupFlag) {
+        //     this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is part of a group and is sequential, leaving retry logic to the group executor.`));
+        //     return;
+        // }
+
+        const needsToBeRetried = this._config.isRetryable && this._attemptsCount < this._config.maxRetryAttempts;
         if (!this._config.isRetryable) {
             this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is set as not retryable, skipping retry.`));
             return;
@@ -36,7 +42,7 @@ export class Clean<TT> implements PromiseLike<TT> {
             this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} has reached max retry attempts, failed retry/s.`));
             return;
         }
-        if (shouldRetry) {
+        if (needsToBeRetried) {
             this._attemptsCount++;
             this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} is being retried for the ${ordinal(this._attemptsCount)} time...`));
             return await this; // TODO write unit test
@@ -69,44 +75,34 @@ export class Clean<TT> implements PromiseLike<TT> {
             }
         }
     }
-    private _failSafeExecute = async function(externalExecutor = '') {
-        // consider thread safety + scope safety for code which an external user writes
-        try {
-            const executor = externalExecutor ? new Function(externalExecutor) : this._innerPromiseExecutor;
-            const innerPromise = new Promise<TT>(executor);
-            this._innerPromiseLastResolvedValue = await innerPromise;
-            if (!this._config.success(this._innerPromiseLastResolvedValue)) {
-                if (!await this._rescue()) {
-                    this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} rescue failed, returning false.`));
-                    // await onrejected(`Clean with id: ${this._id} rescue failed.`); 
-                    // reject(`Clean with id: ${this._id} rescue failed.`);
-                    return false;
-                }
-            }
-            return this._innerPromiseLastResolvedValue;
-            // TODO try make these 3 as atomic as possible
-            // await onfulfilled(this._innerPromiseLastResolvedValue); // TODO add to the 'then' method
-            // resolve(this._innerPromiseLastResolvedValue as unknown as TResult1); // TODO add to the 'then' method
-        } catch (innerPromiseError) {
-            // await onrejected(innerPromiseError);  // TODO add to the 'then' method
-            // reject(`Clean with id: ${this._id} inner promise error. ${innerPromiseError}`); // TODO do I need that?
-            this._config.verbose && (this._config.logger.error(`Clean with id: ${this._id} inner promise error. ${innerPromiseError}`));
-            return false;
-        }
-    }
     groupContext?: CleanGroupContext;
     // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
     then: <TResult1 = TT, TResult2 = never>(onfulfilled?: ((value: TT) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null) => Promise<TResult1 | TResult2> = function(onfulfilled, onrejected) {
+        // consider thread safety + scope safety for code which an external user writes
         return new Promise(async <TResult1 = TT, TResult2 = never>(resolve: (value: TResult1 | TResult2 | PromiseLike<TResult1 | TResult2>) => void, reject: (reason?: any) => void) => {
             // here the Clean resolves or rejects, regardless of the inner promise
-            const isSuccess = await this._failSafeExecute();
-            if (!isSuccess) {
-                this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} failed, returning false.`));
-                await onrejected(`Clean with id: ${this._id} failed.`); 
-                // reject(`Clean with id: ${this._id} failed.`); // TODO do I need this?
+            try {
+                const executor = this._innerPromiseExecutor;
+                const innerPromise = new Promise<TT>(executor);
+                this._innerPromiseLastResolvedValue = await innerPromise;
+                if (!this._config.success(this._innerPromiseLastResolvedValue)) {
+                    if (!await this._rescue()) {
+                        this._config.verbose && (this._config.logger.log(`Clean with id: ${this._id} rescue failed, returning false.`));
+                        await onrejected(`Clean with id: ${this._id} rescue failed.`); 
+                        // reject(`Clean with id: ${this._id} rescue failed.`);
+                        return false;
+                    }
+                }
+                // TODO try make these 3 as atomic as possible
+                await onfulfilled(this._innerPromiseLastResolvedValue);
+                resolve(this._innerPromiseLastResolvedValue as unknown as TResult1);
+                return this._innerPromiseLastResolvedValue;
+            } catch (innerPromiseError) {
+                await onrejected(innerPromiseError); 
+                // reject(`Clean with id: ${this._id} inner promise error. ${innerPromiseError}`); // TODO do I need that?
+                this._config.verbose && (this._config.logger.error(`Clean with id: ${this._id} inner promise error. ${innerPromiseError}`));
                 return false;
             }
-            
         });
     };
     constructor(executor: (resolve: (value: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void, config: CleanUserConfig<TT>) {
@@ -134,7 +130,7 @@ export class Clean<TT> implements PromiseLike<TT> {
 
     }
 
-    static async all<T>(cleans: (Clean<T>)[]): Promise<T[] | void> {
+    static async all<T>(cleans: (Clean<T>)[], isSequential = false): Promise<T[] | void> {
         const id = uuidv4();
 
         const verbose = true; // temp, get from global config when available
@@ -144,8 +140,10 @@ export class Clean<TT> implements PromiseLike<TT> {
         function revertAll() {
             try {
                 const reversedCleans = cleans.reverse();
-                // ? should it be sync (for in)? or async(forEach)? maybe something else? perhaps user will be able to config either sync or async execution
+                // TODO what if revert throws an error? should I catch it and log it?
                 reversedCleans.forEach(clean => clean._config.revertOnFailure !== false ? clean._revert(true) : true);
+                // Revert will always be concurrent even if all is sequential, because I can't see a reason to revert sequentially
+                // But code is still here if we ever see one:
                 // for (const clean of reversedCleans) {
                 //     clean._config.revertOnFailure !== false ? await clean._rescue(true) : true;
                 // }
@@ -155,14 +153,19 @@ export class Clean<TT> implements PromiseLike<TT> {
         }
         // if any of 'cleans' reject, call '_rescue' on all of them:
         try {
-            // fk sync code, can I do it in a smarter way? at least work with event loop and not against it
-            for (const clean of cleans) {
+            const cleanAddToGroupContext = (clean: Clean<T>) => {
                 clean.groupContext = {
                     id,
                     cleans,
+                    isSequential,
                 };
-            }
-            const cleanResults = await Promise.all(cleans);
+            };
+            const cleanAddToGroupContextAll = (cleans: Clean<T>[]) => cleans.map(cleanAddToGroupContext);
+            await Promise.all(cleanAddToGroupContextAll(cleans));
+            // TODO retries must also happen sequentially
+            const cleanResults = isSequential ? await promiseAllSequentiallyRecursive(cleans.slice().reverse()) : await Promise.all(cleans);
+            // using slice to reverse immutably
+            // reverse as an optimization for the sequential case to avoid re-arranging the array every time
             const cleanSuccesses = cleans.map((clean, i) => clean._config.success(cleanResults[i])); // TODO write unit test
             if (cleanSuccesses.some(cleanSuccess => !cleanSuccess)) {
                 revertAll();
@@ -171,6 +174,17 @@ export class Clean<TT> implements PromiseLike<TT> {
             }
         } catch (cleanError) {
             revertAll();
+        }
+
+        // It will work because clean isn't starting to execute as soon as it is created, like a promise, but only when it is awaited
+        async function promiseAllSequentiallyRecursive(cleans: PromiseLike<any>[], results: any[] = []): Promise<any[]> {
+            if (cleans?.length === 0) {
+                return Promise.resolve(results);
+            }
+            const current = cleans.pop();
+            const currentResult = await current; // if it rejects or has an error?
+            results.push(currentResult);
+            return await promiseAllSequentiallyRecursive(cleans, results);
         }
     }
 }
