@@ -2,8 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { PinkyPromiseGlobalConfig, PinkyPromiseGroupContext, PinkyPromiseUserConfig } from "./contract/pinky-promise.contract";
 import { ordinal } from "./ordinal";
 
-// TODO test this + write unit test
-const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
+export const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
     get: function(_target, _prop) {
         return () => {};
     }
@@ -116,7 +115,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                     if (!await this._rescue()) {
                         verbose && (logger.log(`PinkyPromise with id: ${this._id} rescue failed, returning false.`));
                         await onrejected(`PinkyPromise with id: ${this._id} rescue failed.`); 
-                        reject(`PinkyPromise with id: ${this._id} rescue failed.`);
+                        // reject(`PinkyPromise with id: ${this._id} rescue failed.`);
                         return false;
                     }
                 }
@@ -168,11 +167,11 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             try {
                 const reversedPinkyPromises = pinkyPromises.reverse();
                 // TODO what if revert throws an error? should I catch it and log it?
-                reversedPinkyPromises.forEach(pinkyPromise => pinkyPromise._config.revertOnFailure !== false ? pinkyPromise._revert(true) : true);
+                reversedPinkyPromises.forEach(pinkyPromise => pinkyPromise._revert(true));
                 // Revert will always be concurrent even if all is sequential, because I can't see a reason to revert sequentially
                 // But code is still here if we ever see one:
                 // for (const pinkyPromise of reversedPinkyPromises) {
-                //     pinkyPromise._config.revertOnFailure !== false ? await pinkyPromise._rescue(true) : true;
+                //     await pinkyPromise._rescue(true);
                 // }
             } catch (revertError) {
                 logger.error(`PinkyPromise.all with id:${id} revert error! ${revertError}`);
