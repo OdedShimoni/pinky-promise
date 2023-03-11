@@ -111,7 +111,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                         return false;
                     }
                 }
-                // TODO try make these 3 as atomic as possible
+                
                 await onfulfilled(this._innerPromiseLastResolvedValue);
                 resolve(this._innerPromiseLastResolvedValue as unknown as TResult1);
                 return this._innerPromiseLastResolvedValue;
