@@ -19,6 +19,13 @@ export class ProgrammerError extends Error {
   }
 }
 
+export class RetriesDidNotSucceed extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "RetriesDidNotSucceed";
+    }
+}
+
 export class RevertError extends Error {
   constructor(message: string) {
     super(message);

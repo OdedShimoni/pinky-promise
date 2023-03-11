@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PinkyPromiseGlobalConfig, PinkyPromiseGroupContext, PinkyPromiseUserConfig } from "./contract/pinky-promise.contract";
-import { ErrorOccuredAndReverted, FatalErrorNotReverted, ProgrammerError, RevertError } from "./errors";
+import { ErrorOccuredAndReverted, FatalErrorNotReverted, ProgrammerError, RetriesDidNotSucceed, RevertError } from "./errors";
 import { ordinal } from "./ordinal";
 
 export const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
@@ -48,22 +48,21 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 verbose && (logger.log(`PinkyPromise with id: ${this._id} was retried successfully, returning true.`));
                 return true;
             }
+
+            // it calls revert for every retry attempt so I patched it:
+            const finishedRetries = this._attemptsCount >= this._config.maxRetryAttempts;
+            if (finishedRetries) {
+                throw new RetriesDidNotSucceed(`PinkyPromise with id: ${this._id} couldn't succeed even after its retries.`);
+            }
+
         } catch (e) {
-            verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while retrying, reverting...`, e)); // TODO test logs nicely
-            if (isExecutedAsPartOfAGroupFlag) {
-                return await this._revert(isExecutedAsPartOfAGroupFlag);
-            }
-            return false;
-        }
-        
-        // it calls revert for every retry attempt so I patched it:
-        const finishedRetries = this._attemptsCount >= this._config.maxRetryAttempts;
-        if (finishedRetries) {
-            verbose && (logger.log(`PinkyPromise with id: ${this._id} couldn't success even after its retries, reverting...`));
-            if (isExecutedAsPartOfAGroupFlag) {
-                return await this._revert(isExecutedAsPartOfAGroupFlag);
-            }
-            return false;
+            
+            const logString = (e instanceof RetriesDidNotSucceed)
+                ? `PinkyPromise with id: ${this._id} failed its retries, reverting...`
+                : `PinkyPromise with id: ${this._id} caught an error while retrying, reverting...`;
+            verbose && (logger.log(logString));
+            return await this._revert(isExecutedAsPartOfAGroupFlag);
+            
         }
     };
 
@@ -107,29 +106,39 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             return true;
         }
 
-        if (!!this._config.revert) {
-            verbose && (logger.log(`PinkyPromise with id: ${this._id} is being reverted...`));
-            try {
-                const revertResult = await this._config.revert();
-                if (revertResult !== false) { // to allow the user stating revert failure if explicitly returning false from revert function. if revert failure fails then whole PinkyPromise should reject
-                    // TODO write unit test for the above comment's functionality
-                    verbose && (logger.log(`PinkyPromise with id: ${this._id} was reverted successfully, returning true.`));
-                    return true;
-                }
+        if (!this._config.revert) {
+            /**
+             * Super unlikely since we have a validation in constructor
+             * But it's here to prevent hacks which cause problems
+             */
+            verbose && (logger.log(`PinkyPromise with id: ${this._id} is not being reverted because revert function is not defined, returning false.`));
+            throw new ProgrammerError(`PinkyPromise with id: ${this._id} failed to revert.`);
+        }
+        
+        verbose && (logger.log(`PinkyPromise with id: ${this._id} is being reverted...`));
+        try {
+            const revertResult = await this._config.revert();
+            if (revertResult !== false) { // to allow the user stating revert failure if explicitly returning false from revert function. if revert failure fails then whole PinkyPromise should reject
+                // TODO write unit test for the above comment's functionality
+                verbose && (logger.log(`PinkyPromise with id: ${this._id} was reverted successfully, returning true.`));
+                return true;
+            } else {
                 throw new RevertError(`PinkyPromise with id: ${this._id} failed to revert.`);
-            } catch (e) {
+            }
+        } catch (e) {
 
+            // TODO test this
+            if (e instanceof RevertError && this._revertAttemptsCounts < this._config.maxRevertAttempts) {
+                this._revertAttemptsCounts++;
+                verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert...`));
                 // TODO test this
-                if (e instanceof RevertError && this._revertAttemptsCounts < this._config.maxRevertAttempts) {
-                    this._revertAttemptsCounts++;
-                    verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert...`));
-                    // TODO test this
+                if (isExecutedAsPartOfAGroupFlag) {
                     return await this._revert(isExecutedAsPartOfAGroupFlag);
                 }
-                
-                logger.error(`PinkyPromise with id: ${this._id} failed to revert.`, e);
-                throw new FatalErrorNotReverted(`PinkyPromise with id: ${this._id} failed to revert.`);
             }
+            
+            logger.error(`PinkyPromise with id: ${this._id} failed to revert.`, e);
+            throw new FatalErrorNotReverted(`PinkyPromise with id: ${this._id} failed to revert.`);
         }
     }
 
@@ -168,6 +177,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         if (!PinkyPromise._globalConfig) {
             throw new ProgrammerError(`PinkyPromise is not configured. Please call PinkyPromise.config before creating a PinkyPromise.`);
         }
+        if (!config) {
+            throw new ProgrammerError(`${this.constructor.name} must have a config object.`);
+        }
         if (!config?.revert && config?.revertOnFailure !== false) {
             throw new ProgrammerError(`${this.constructor.name} must either have a revert method or explicitly state don't revert on error with revertOnFailure: false.`);
         }
@@ -191,7 +203,13 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
 
         const verbose = PinkyPromise._globalConfig.verbose;
         const logger = PinkyPromise._globalConfig.logger;
-        verbose && (logger.log(`PinkyPromise created with id: ${this._id}`, this._innerPromiseExecutor.toString(), this._config));
+        verbose && (logger.log(`PinkyPromise created with id: ${this._id}`,
+            this._innerPromiseExecutor.toString(),
+            {
+                ...this._config,
+                revert: this._config?.revert?.toString(),
+                success: this._config?.success?.toString() ,
+            }));
     }
 
     static async all<T>(pinkyPromises: (PinkyPromise<T>)[], isSequential = false): Promise<T[] | void> {
