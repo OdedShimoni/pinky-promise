@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "build:dev": "tsc -w",
     "prepare" : "npm run build",
     "prepublishOnly" : "npm test"
