@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PinkyPromiseGlobalConfig, PinkyPromiseGroupContext, PinkyPromiseUserConfig } from "./contract/pinky-promise.contract";
-import { ErrorOccuredAndReverted, FatalErrorNotReverted, ProgrammerError } from "./errors";
+import { ErrorOccuredAndReverted, FatalErrorNotReverted, ProgrammerError, RevertError } from "./errors";
 import { ordinal } from "./ordinal";
 
 export const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
@@ -22,11 +22,19 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         }
         this._globalConfig = { ...defaultGlobalConfig, ...config };
     }
+
     private _id: string;
+
     private _config: PinkyPromiseUserConfig<TT>;
+    
     private _innerPromiseExecutor: (resolve: (value?: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void;
+
     private _innerPromiseLastResolvedValue: TT;
-    private _attemptsCount: number = 0;
+
+    private _attemptsCount = 0;
+
+    private _revertAttemptsCounts = 0;
+    
     public _groupContext?: PinkyPromiseGroupContext;
     // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
     
@@ -78,6 +86,13 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         }
     }
 
+    /**
+     * * Contribution
+     * * For the future: consider changing PinkyPromise to be made out of 2 structures:
+     * * 1. A self retryable promise
+     * * 2. PinkyPromise extends SelfRetryablePromise: A revertable promise which extends the self retryable promise
+     * * This way we can make the revert method of a self retryable promise and save code
+     */
     private _revert = async function(isExecutedAsPartOfAGroupFlag = false) {
         const { verbose, logger } = PinkyPromise._globalConfig;
 
@@ -101,9 +116,18 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                     verbose && (logger.log(`PinkyPromise with id: ${this._id} was reverted successfully, returning true.`));
                     return true;
                 }
-            } catch (revertError) {
-                // TODO retry the revert if error occurs
-                logger.error(`PinkyPromise with id: ${this._id} failed to revert.`, revertError); // TODO test that 'revertError' is being inserted correctly and not [object Object]
+                throw new RevertError(`PinkyPromise with id: ${this._id} failed to revert.`);
+            } catch (e) {
+
+                // TODO test this
+                if (e instanceof RevertError && this._revertAttemptsCounts < this._config.maxRevertAttempts) {
+                    this._revertAttemptsCounts++;
+                    verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert...`));
+                    // TODO test this
+                    return await this._revert(isExecutedAsPartOfAGroupFlag);
+                }
+                
+                logger.error(`PinkyPromise with id: ${this._id} failed to revert.`, e);
                 throw new FatalErrorNotReverted(`PinkyPromise with id: ${this._id} failed to revert.`);
             }
         }
@@ -159,6 +183,11 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         // default values
         this._config.isRetryable = this._config?.isRetryable ?? true;
         this._config.maxRetryAttempts = this._config?.maxRetryAttempts ?? 5;
+        this._config.retryMsDelay = this._config?.retryMsDelay ?? 1000;
+        this._config.revertRetryMsDelay = this._config?.revertRetryMsDelay ?? 1000;
+        this._config.revertOnFailure = this._config?.revertOnFailure ?? true;
+        this._config.maxRevertAttempts = this._config?.maxRevertAttempts ?? 5;
+
 
         const verbose = PinkyPromise._globalConfig.verbose;
         const logger = PinkyPromise._globalConfig.logger;

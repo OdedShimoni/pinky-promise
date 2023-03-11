@@ -18,3 +18,10 @@ export class ProgrammerError extends Error {
     this.name = "ProgrammerError";
   }
 }
+
+export class RevertError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RevertError";
+  }
+}

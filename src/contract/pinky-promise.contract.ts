@@ -13,6 +13,9 @@ export interface PinkyPromiseUserConfig<T> {
     revert?: Function;
     revertOnFailure?: boolean;
     maxRetryAttempts?: number;
+    maxRevertAttempts?: number;
+    retryMsDelay?: number;
+    revertRetryMsDelay?: number;
 }
 
 export interface PinkyPromiseGlobalConfig {
