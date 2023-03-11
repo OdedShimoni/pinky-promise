@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PinkyPromiseGlobalConfig, PinkyPromiseGroupContext, PinkyPromiseUserConfig } from "./contract/pinky-promise.contract";
-import { FatalErrorNotReverted, ProgrammerError } from "./errors";
+import { ErrorOccuredAndReverted, FatalErrorNotReverted, ProgrammerError } from "./errors";
 import { ordinal } from "./ordinal";
 
 export const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
@@ -104,7 +104,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             } catch (revertError) {
                 // TODO retry the revert if error occurs
                 logger.error(`PinkyPromise with id: ${this._id} failed to revert.`, revertError); // TODO test that 'revertError' is being inserted correctly and not [object Object]
-                return;
+                throw new FatalErrorNotReverted(`PinkyPromise with id: ${this._id} failed to revert.`);
             }
         }
     }
@@ -162,7 +162,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
 
         const verbose = PinkyPromise._globalConfig.verbose;
         const logger = PinkyPromise._globalConfig.logger;
-        verbose && (logger.log(`PinkyPromise created with id: ${this._id}`, this));
+        verbose && (logger.log(`PinkyPromise created with id: ${this._id}`, this._innerPromiseExecutor.toString(), this._config));
     }
 
     static async all<T>(pinkyPromises: (PinkyPromise<T>)[], isSequential = false): Promise<T[] | void> {
@@ -171,23 +171,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         const { verbose, logger } = PinkyPromise._globalConfig; // temp, get from global config when available
 
         verbose && (logger.log(`PinkyPromise.all with id: ${id} is being executed...`));
-        function revertAll() {
-            try {
-                const reversedPinkyPromises = pinkyPromises.reverse();
-                // TODO what if revert throws an error? should I catch it and log it?
-                reversedPinkyPromises.forEach(pinkyPromise => pinkyPromise._revert(true));
-                // Revert will always be concurrent even if all is sequential, because I can't see a reason to revert sequentially
-                // But code is still here if we ever see one:
-                // for (const pinkyPromise of reversedPinkyPromises) {
-                //     await pinkyPromise._rescue(true);
-                // }
-            } catch (revertError) {
-                logger.error(`PinkyPromise.all with id:${id} revert error!`, revertError);
-                throw new FatalErrorNotReverted(`PinkyPromise.all with id:${id} revert error!`);
-            }
-        }
         // if any of 'pinkyPromises' reject, call '_rescue' on all of them:
         try {
+
             const pinkyPromiseAddToGroupContext = (pinkyPromise: PinkyPromise<T>) => {
                 pinkyPromise._groupContext = {
                     id,
@@ -209,9 +195,39 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             } else {
                 return pinkyPromiseResults;
             }
+
         } catch (e) {
-            logger.error(`PinkyPromise.all with id:${id} pinkyPromise error!`, e); // TODO test the error is logged nicely
-            revertAll();
+
+            if (e instanceof FatalErrorNotReverted) {
+                logger.error(`Fatal Error!: PinkyPromise.all with id:${id} error!`, e);
+                throw e;
+            }
+
+            try {
+                await revertAll();
+                throw new ErrorOccuredAndReverted(`PinkyPromise.all with id:${id}: Fail safe failed but all pinky promises were reverted successfully.`);
+            } catch (e) {
+                if (!(e instanceof ErrorOccuredAndReverted)) {
+                    throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id: ${id} failed to revert all!`);
+                }
+                throw e;
+            }
+
+        }
+
+
+        function revertAll() {
+            try {
+                const reversedPinkyPromises = pinkyPromises.reverse();
+                const reversedPinkyPromisesReverts = reversedPinkyPromises.map(pinkyPromise => pinkyPromise._revert(true));
+                return Promise.all(reversedPinkyPromisesReverts);
+                // Revert will always be concurrent even if all is sequential, because I can't see a reason to revert sequentially
+            } catch (revertError) {
+                logger.error(`Fatal Error!: PinkyPromise.all with id:${id} revert error!`, revertError);
+
+                // test what if one of the first reverts rejects and the error is thrown, if the rest of the reverts are still executed or it stops
+                throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id:${id} revert error!`);
+            }
         }
 
         // It will work because pinkyPromise isn't starting to execute as soon as it is created, like a promise, but only when it is awaited
@@ -230,3 +246,5 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         return await PinkyPromise.all(pinkyPromises, true);
     }
 }
+
+export { ProgrammerError, ErrorOccuredAndReverted, FatalErrorNotReverted };
