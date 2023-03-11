@@ -16,11 +16,11 @@ const defaultGlobalConfig: PinkyPromiseGlobalConfig = {
 
 export class PinkyPromise<TT> implements PromiseLike<TT> {
     private static _globalConfig: PinkyPromiseGlobalConfig;
-    public static config(config: PinkyPromiseGlobalConfig = defaultGlobalConfig) {
+    public static config(config: Partial<PinkyPromiseGlobalConfig> = defaultGlobalConfig) {
         if (PinkyPromise?._globalConfig) {
             throw new Error('PinkyPromise is already configured, you can only configure it once.');
         }
-        this._globalConfig = config;
+        this._globalConfig = { ...defaultGlobalConfig, ...config };
     }
     private _id: string;
     private _config: PinkyPromiseUserConfig<TT>;
@@ -31,7 +31,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
     
 
-    private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false) {
+    private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false): Promise<boolean> {
         const { verbose, logger } = PinkyPromise._globalConfig;
         verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed because it has resolved with (${JSON.stringify(this._innerPromiseLastResolvedValue)}) and is beginning fail safe logic...`));
         const retriedSuccessfuly = await this._retry() && await this._config.success(this._innerPromiseLastResolvedValue);
@@ -44,7 +44,10 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         const finishedRetries = this._attemptsCount >= this._config.maxRetryAttempts;
         if (finishedRetries) {
             verbose && (logger.log(`PinkyPromise with id: ${this._id} couldn't success even after its retries, reverting...`));
-            return this._revert(isExecutedAsPartOfAGroupFlag);
+            if (isExecutedAsPartOfAGroupFlag) {
+                return await this._revert(isExecutedAsPartOfAGroupFlag);
+            }
+            return false;
         }
         throw new Error(`Unknown error: PinkyPromise with id: ${this._id} couldn't be rescued.`);
     };
@@ -92,7 +95,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                     return true;
                 }
             } catch (revertError) {
-                // TODO retry the revert
+                // TODO retry the revert if error occurs
                 logger.error(`PinkyPromise with id: ${this._id} failed to revert.`, revertError); // TODO test that 'revertError' is being inserted correctly and not [object Object]
                 return;
             }
@@ -113,7 +116,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                     if (!await this._rescue()) {
                         verbose && (logger.log(`PinkyPromise with id: ${this._id} rescue failed, returning false.`));
                         await onrejected(`PinkyPromise with id: ${this._id} rescue failed.`); 
-                        // reject(`PinkyPromise with id: ${this._id} rescue failed.`);
+                        reject(`PinkyPromise with id: ${this._id} rescue failed.`);
                         return false;
                     }
                 }
@@ -123,7 +126,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 return this._innerPromiseLastResolvedValue;
             } catch (innerPromiseError) {
                 await onrejected(innerPromiseError); 
-                // reject(`PinkyPromise with id: ${this._id} inner promise error. ${innerPromiseError}`); // TODO do I need that?
+                reject(`PinkyPromise with id: ${this._id} inner promise error. ${innerPromiseError}`); // TODO do I need that?
                 verbose && (logger.error(`PinkyPromise with id: ${this._id} inner promise error. ${innerPromiseError}`));
                 return false;
             }
