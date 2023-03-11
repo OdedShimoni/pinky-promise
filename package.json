@@ -1,6 +1,6 @@
 {
   "name": "pinky-promise",
-  "version": "0.0.1-beta",
+  "version": "1.0.0-beta",
   "description": "A promise you can trust",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
