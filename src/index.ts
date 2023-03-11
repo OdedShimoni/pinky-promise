@@ -27,6 +27,10 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     private _innerPromiseExecutor: (resolve: (value?: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void;
     private _innerPromiseLastResolvedValue: TT;
     private _attemptsCount: number = 0;
+    public _groupContext?: PinkyPromiseGroupContext;
+    // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
+    
+
     private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false) {
         const { verbose, logger } = PinkyPromise._globalConfig;
         verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed because it has resolved with (${JSON.stringify(this._innerPromiseLastResolvedValue)}) and is beginning fail safe logic...`));
@@ -44,6 +48,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         }
         throw new Error(`Unknown error: PinkyPromise with id: ${this._id} couldn't be rescued.`);
     };
+
     private _retry = async function() {
         const { verbose, logger } = PinkyPromise._globalConfig;
         
@@ -62,6 +67,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             return await this; // TODO write unit test
         }
     }
+
     private _revert = async function(isExecutedAsPartOfAGroupFlag = false) {
         const { verbose, logger } = PinkyPromise._globalConfig;
 
@@ -70,7 +76,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             return true;
         }
 
-        const isPartOfAGroup = !!this.groupContext;
+        const isPartOfAGroup = !!this._groupContext;
         if (isPartOfAGroup && !isExecutedAsPartOfAGroupFlag) {
             verbose && (logger.log(`PinkyPromise with id: ${this._id} needs to be reverted and is part of a group, skipping revert inside PinkyPromise and leaving it to happen as part of the group.`));
             return true;
@@ -86,13 +92,13 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                     return true;
                 }
             } catch (revertError) {
+                // TODO retry the revert
                 logger.error(`PinkyPromise with id: ${this._id} failed to revert.`, revertError); // TODO test that 'revertError' is being inserted correctly and not [object Object]
                 return;
             }
         }
     }
-    groupContext?: PinkyPromiseGroupContext;
-    // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
+
     then: <TResult1 = TT, TResult2 = never>(onfulfilled?: ((value: TT) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null) => Promise<TResult1 | TResult2> = function(onfulfilled, onrejected) {
         const { verbose, logger } = PinkyPromise._globalConfig;
         
@@ -123,6 +129,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             }
         });
     };
+    
     constructor(executor: (resolve: (value: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void, config: PinkyPromiseUserConfig<TT>) {
         if (!PinkyPromise._globalConfig) {
             throw new Error(`PinkyPromise is not configured. Please call PinkyPromise.config before creating a PinkyPromise.`);
@@ -171,7 +178,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         // if any of 'pinkyPromises' reject, call '_rescue' on all of them:
         try {
             const pinkyPromiseAddToGroupContext = (pinkyPromise: PinkyPromise<T>) => {
-                pinkyPromise.groupContext = {
+                pinkyPromise._groupContext = {
                     id,
                     pinkyPromises,
                     isSequential,
@@ -206,5 +213,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             results.push(currentResult);
             return await awaitAllSequentially(pinkyPromises, results);
         }
+    }
+
+    static async allSeq<T>(pinkyPromises: (PinkyPromise<T>)[]): Promise<T[] | void> {
+        return await PinkyPromise.all(pinkyPromises, true);
     }
 }
