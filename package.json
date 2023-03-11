@@ -6,6 +6,9 @@
   "types": "dist/index.d.ts",
   "author": "Oded Shimoni",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "uuid": "^9.0.0"
   },
