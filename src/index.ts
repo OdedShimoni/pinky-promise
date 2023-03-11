@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PinkyPromiseGlobalConfig, PinkyPromiseGroupContext, PinkyPromiseUserConfig } from "./contract/pinky-promise.contract";
+import { FatalErrorNotReverted, ProgrammerError } from "./errors";
 import { ordinal } from "./ordinal";
 
 export const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
@@ -17,7 +18,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     private static _globalConfig: PinkyPromiseGlobalConfig;
     public static config(config: Partial<PinkyPromiseGlobalConfig> = defaultGlobalConfig) {
         if (PinkyPromise?._globalConfig) {
-            throw new Error('PinkyPromise is already configured, you can only configure it once.');
+            throw new ProgrammerError('PinkyPromise is already configured, you can only configure it once.');
         }
         this._globalConfig = { ...defaultGlobalConfig, ...config };
     }
@@ -32,11 +33,19 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
 
     private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false): Promise<boolean> {
         const { verbose, logger } = PinkyPromise._globalConfig;
-        verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed because it has resolved with (${JSON.stringify(this._innerPromiseLastResolvedValue)}) and is beginning fail safe logic...`));
-        const retriedSuccessfuly = await this._retry() && await this._config.success(this._innerPromiseLastResolvedValue);
-        if (retriedSuccessfuly) {
-            verbose && (logger.log(`PinkyPromise with id: ${this._id} was retried successfully, returning true.`));
-            return true;
+        verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed, it resolved with (${JSON.stringify(this._innerPromiseLastResolvedValue)}) and is beginning fail safe logic...`));
+        try {
+            const retriedSuccessfuly = await this._retry() && await this._config.success(this._innerPromiseLastResolvedValue);
+            if (retriedSuccessfuly) {
+                verbose && (logger.log(`PinkyPromise with id: ${this._id} was retried successfully, returning true.`));
+                return true;
+            }
+        } catch (e) {
+            verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while retrying, reverting...`, e)); // TODO test logs nicely
+            if (isExecutedAsPartOfAGroupFlag) {
+                return await this._revert(isExecutedAsPartOfAGroupFlag);
+            }
+            return false;
         }
         
         // it calls revert for every retry attempt so I patched it:
@@ -48,7 +57,6 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             }
             return false;
         }
-        throw new Error(`Unknown error: PinkyPromise with id: ${this._id} couldn't be rescued.`);
     };
 
     private _retry = async function() {
@@ -125,8 +133,8 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 return this._innerPromiseLastResolvedValue;
             } catch (innerPromiseError) {
                 await onrejected(innerPromiseError); 
-                reject(`PinkyPromise with id: ${this._id} inner promise error. ${innerPromiseError}`); // TODO do I need that?
-                verbose && (logger.error(`PinkyPromise with id: ${this._id} inner promise error. ${innerPromiseError}`));
+                // reject(`PinkyPromise with id: ${this._id} inner promise error. ${innerPromiseError}`); // TODO do we need that?
+                verbose && (logger.error(`PinkyPromise with id: ${this._id} inner promise error.`, innerPromiseError));
                 return false;
             }
         });
@@ -134,13 +142,13 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     
     constructor(executor: (resolve: (value: TT | PromiseLike<TT>) => void, reject: (reason?: any) => void) => void, config: PinkyPromiseUserConfig<TT>) {
         if (!PinkyPromise._globalConfig) {
-            throw new Error(`PinkyPromise is not configured. Please call PinkyPromise.config before creating a PinkyPromise.`);
+            throw new ProgrammerError(`PinkyPromise is not configured. Please call PinkyPromise.config before creating a PinkyPromise.`);
         }
         if (!config?.revert && config?.revertOnFailure !== false) {
-            throw new Error(`${this.constructor.name} must either have a revert method or explicitly state don't revert on error with revertOnFailure: false.`);
+            throw new ProgrammerError(`${this.constructor.name} must either have a revert method or explicitly state don't revert on error with revertOnFailure: false.`);
         }
         if (!config?.success) {
-            throw new Error(`${this.constructor.name} must have a success method to know if it succeeded.`);
+            throw new ProgrammerError(`${this.constructor.name} must have a success method to know if it succeeded.`);
         }
 
         this._id = uuidv4();
@@ -174,7 +182,8 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 //     await pinkyPromise._rescue(true);
                 // }
             } catch (revertError) {
-                logger.error(`PinkyPromise.all with id:${id} revert error! ${revertError}`);
+                logger.error(`PinkyPromise.all with id:${id} revert error!`, revertError);
+                throw new FatalErrorNotReverted(`PinkyPromise.all with id:${id} revert error!`);
             }
         }
         // if any of 'pinkyPromises' reject, call '_rescue' on all of them:
@@ -201,7 +210,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 return pinkyPromiseResults;
             }
         } catch (e) {
-            logger.error(`PinkyPromise.all with id:${id} pinkyPromise error! ${e.message}`, { stack: e.stack }); // TODO test the error is logged nicely
+            logger.error(`PinkyPromise.all with id:${id} pinkyPromise error!`, e); // TODO test the error is logged nicely
             revertAll();
         }
 
