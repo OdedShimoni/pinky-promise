@@ -1,5 +1,5 @@
 import sinon from 'sinon';
-import * as index from '.';
+import * as index from './src/';
 index.PinkyPromise.config();
 describe('Util tests', () => {
     it('allPropertiesAreEmptyFunctions tests', () => {
