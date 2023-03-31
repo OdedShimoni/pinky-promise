@@ -258,10 +258,8 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             
             const pinkyPromiseSuccesses = pinkyPromises.map((pinkyPromise, i) => pinkyPromise._config.success(pinkyPromiseResults[i]));
             if (pinkyPromiseSuccesses.some(pinkyPromiseSuccess => !pinkyPromiseSuccess)) {
-                const revertResults = await revertAll();
-                if (revertResults.some(revertResult => !revertResult)) {
-                    throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id: ${id} failed to revert all!`);
-                }
+                logger.info(`PinkyPromise.all with id: ${id} - some Pinky Promises couldn't succeed even after retries. Proceeding to revert all...`);
+                throw new RetriesDidNotSucceed(`PinkyPromise.all with id: ${id} - some Pinky Promises couldn't succeed even after retries.`);
             } else {
                 return pinkyPromiseResults;
             }
@@ -274,8 +272,11 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             }
 
             try {
-                await revertAll();
-                throw new ErrorOccuredAndReverted(`PinkyPromise.all with id:${id}: Fail safe failed but all pinky promises were reverted successfully.`);
+                const revertResults = await revertAll();
+                if (revertResults.some(revertResult => !revertResult)) {
+                    throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id: ${id} failed to revert all!`);
+                }
+                throw new ErrorOccuredAndReverted(`PinkyPromise.all with id: ${id} error occured in at least a single Pinky Promise but all were reverted successfully.`);
             } catch (e) {
                 if (!(e instanceof ErrorOccuredAndReverted)) {
                     throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id: ${id} failed to revert all!`);

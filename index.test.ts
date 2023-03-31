@@ -142,6 +142,7 @@ describe('Pinky Promise flow tests', () => {
             
             try {
                 await pinky;
+                expect(true).toBe(false);
             }
             catch (e) {
                 expect(e instanceof index.FatalErrorNotReverted).toBe(true);
@@ -168,6 +169,7 @@ describe('Pinky Promise flow tests', () => {
 
             try {
                 await pinky;
+                expect(true).toBe(false);
             }
             catch (e) {
                 expect(e instanceof index.FatalErrorNotReverted).toBe(true);
@@ -194,6 +196,7 @@ describe('Pinky Promise flow tests', () => {
 
             try {
                 await pinky;
+                expect(true).toBe(false);
             }
             catch (e) {
                 expect(e instanceof index.FatalErrorNotReverted).toBe(true);
@@ -221,6 +224,7 @@ describe('Pinky Promise flow tests', () => {
             
             try {
                 await pinky;
+                expect(true).toBe(false);
             }
             catch (e) {
                 expect(e instanceof index.FatalErrorNotReverted).toBe(true);
@@ -372,11 +376,15 @@ describe('Pinky Promise flow tests', () => {
             const _pinky3SuccessSpy = sinon.spy(pinky3['_config'], 'success');
             const _pinky3RevertSpy = sinon.spy(pinky3['_config'], 'revert');
 
-            await index.PinkyPromise.all([pinky1, pinky2, pinky3]);
-
-            expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
-            expect((pinky2['_config'].revert as sinon.Spy).callCount).toBe(1);
-            expect((pinky3['_config'].revert as sinon.Spy).callCount).toBe(1);
+            try {
+                await index.PinkyPromise.all([pinky1, pinky2, pinky3]);
+                expect(true).toBe(false);
+            } catch (e) {
+                expect(e instanceof index.ErrorOccuredAndReverted).toBe(true);
+                expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
+                expect((pinky2['_config'].revert as sinon.Spy).callCount).toBe(1);
+                expect((pinky3['_config'].revert as sinon.Spy).callCount).toBe(1);
+            }
         });
 
         test('the flow where all promises are resolved but one fails and the other succeeds but 1 of the reverts fail', async () => {
@@ -426,6 +434,7 @@ describe('Pinky Promise flow tests', () => {
 
             try {
                 await index.PinkyPromise.all([pinky1, pinky2, pinky3]);
+                expect(true).toBe(false);
             } catch (e) {
                 expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
                 expect((pinky2['_config'].revert as sinon.Spy).callCount).toBe(1);
@@ -481,6 +490,7 @@ describe('Pinky Promise flow tests', () => {
 
             try {
                 await index.PinkyPromise.all([pinky1, pinky2, pinky3]);
+                expect(true).toBe(false);
             } catch (e) {
                 expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
                 expect((pinky2['_config'].revert as sinon.Spy).callCount).toBe(1);
@@ -626,11 +636,15 @@ describe('Pinky Promise flow tests', () => {
                 const _pinky3SuccessSpy = sinon.spy(pinky3['_config'], 'success');
                 const _pinky3RevertSpy = sinon.spy(pinky3['_config'], 'revert');
     
-                await index.PinkyPromise.all([pinky1, pinky2, pinky3], true);
-    
-                expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
-                expect((pinky2['_config'].revert as sinon.Spy).callCount).toBe(1);
-                expect((pinky3['_config'].revert as sinon.Spy).callCount).toBe(1);
+                try {
+                    await index.PinkyPromise.all([pinky1, pinky2, pinky3], true);
+                    expect(true).toBe(false);
+                } catch (e) {
+                    expect(e instanceof index.ErrorOccuredAndReverted).toBe(true);
+                    expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
+                    expect((pinky2['_config'].revert as sinon.Spy).callCount).toBe(1);
+                    expect((pinky3['_config'].revert as sinon.Spy).callCount).toBe(1);
+                }
             });
         });
     });
