@@ -1,30 +1,30 @@
-import * as index from '../src';
-import * as errors from '../src/errors';
+import { errors, PinkyPromise } from '../src';
 import { ordinal } from '../src/ordinal';
-index.PinkyPromise.config();
+import { allPropertiesAreEmptyFunctions } from '../src/pinky-promise';
+PinkyPromise.config();
 
 it('allPropertiesAreEmptyFunctions tests', () => {
-    expect(index.allPropertiesAreEmptyFunctions.randomName({})).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName()).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName('randomArgument')).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName(1)).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName(true)).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName(null)).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName(undefined)).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName([])).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName([1, 2, 3])).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName(1, 2, 3)).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName('randomArgument', 1, true, null, undefined, [])).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName({ randomProperty: 'randomValue' })).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.randomName({ randomProperty: 1 })).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName({})).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName()).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName('randomArgument')).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName(1)).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName(true)).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName(null)).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName(undefined)).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName([])).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName([1, 2, 3])).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName(1, 2, 3)).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName('randomArgument', 1, true, null, undefined, [])).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName({ randomProperty: 'randomValue' })).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.randomName({ randomProperty: 1 })).toBe(undefined);
 
     const randomString = `_${Math.random()}`;
-    expect(index.allPropertiesAreEmptyFunctions[randomString]({})).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions[randomString]({})).toBe(undefined);
 
-    expect(index.allPropertiesAreEmptyFunctions.info('Info...')).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.log('Log...')).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.warn('Warn...')).toBe(undefined);
-    expect(index.allPropertiesAreEmptyFunctions.error('Error...')).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.info('Info...')).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.log('Log...')).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.warn('Warn...')).toBe(undefined);
+    expect(allPropertiesAreEmptyFunctions.error('Error...')).toBe(undefined);
 });
 
 describe('isPinkyPromiseError', () => {

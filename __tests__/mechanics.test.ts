@@ -1,9 +1,9 @@
-import * as index from '../src';
-index.PinkyPromise.config();
+import { errors, PinkyPromise } from "../src";
+PinkyPromise.config();
 
 describe('Pinky Promise mechanics tests', () => {
     it('should throw "FatalErrorNotReverted" if revert is attempted and revert function which the user inserts returns an explicit "false"', async () => {
-        const pinky = new index.PinkyPromise(
+        const pinky = new PinkyPromise(
             (resolve, reject) => {
                 resolve('resolve');
             },
@@ -15,14 +15,15 @@ describe('Pinky Promise mechanics tests', () => {
 
         try {
             await pinky;
+            expect(true).toBe(false);
         } catch (e) {
-            expect(e instanceof index.FatalErrorNotReverted).toBe(true);
+            expect(e instanceof errors.FatalErrorNotReverted).toBe(true);
         }
     });
 
     it('should throw "ProgrammerError" if user sets "isRetryable" to "false" and "revertOnFailure" to "false"', async () => {
         try {
-            const pinky = new index.PinkyPromise(
+            const pinky = new PinkyPromise(
                 (resolve, reject) => {
                     resolve('resolve');
                 },
@@ -32,15 +33,15 @@ describe('Pinky Promise mechanics tests', () => {
                     isRetryable: false,
                 }
             );
-        expect(true).toBe(false);
+            expect(true).toBe(false);
         } catch (e) {
-            expect(e instanceof index.ProgrammerError).toBe(true);
+            expect(e instanceof errors.ProgrammerError).toBe(true);
         }
     });
 
     it('should throw "ProgrammerError" when user sets "revertOnFailure" to "false" and sets revert method', async () => {
         try {
-            new index.PinkyPromise(
+            new PinkyPromise(
                 (resolve, reject) => {
                     resolve('resolve');
                 },
@@ -52,7 +53,7 @@ describe('Pinky Promise mechanics tests', () => {
             );
             expect(true).toBe(false);
         } catch (e) {
-            expect(e instanceof index.ProgrammerError).toBe(true);
+            expect(e instanceof errors.ProgrammerError).toBe(true);
         }
     });
 });
