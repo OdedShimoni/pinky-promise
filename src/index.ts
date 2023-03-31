@@ -39,11 +39,21 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
     
 
+    private _success: Function = function(): boolean {
+        const { verbose, logger } = PinkyPromise._globalConfig;
+        try {
+            return this._config.success(this._innerPromiseLastResolvedValue);
+        } catch (e) {
+            verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while calling 'success' method.`, e));
+            throw new FatalErrorNotReverted(`PinkyPromise with id: ${this._id} caught an error while calling 'success' method.`);
+        }
+    };
+
     private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false): Promise<boolean> {
         const { verbose, logger } = PinkyPromise._globalConfig;
         verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed, it resolved with (${JSON.stringify(this._innerPromiseLastResolvedValue)}) and is beginning fail safe logic...`));
         try {
-            const retriedSuccessfuly = await this._retry() && await this._config.success(this._innerPromiseLastResolvedValue);
+            const retriedSuccessfuly = await this._retry() && this._success();
             if (retriedSuccessfuly) {
                 verbose && (logger.log(`PinkyPromise with id: ${this._id} was retried successfully, returning true.`));
                 return true;
@@ -54,6 +64,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             if (finishedRetries) {
                 throw new RetriesDidNotSucceed(`PinkyPromise with id: ${this._id} couldn't succeed even after its retries.`);
             }
+            return this._rescue(isExecutedAsPartOfAGroupFlag);
 
         } catch (e) {
             
@@ -61,6 +72,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 ? `PinkyPromise with id: ${this._id} failed its retries, reverting...`
                 : `PinkyPromise with id: ${this._id} caught an error while retrying, reverting...`;
             verbose && (logger.log(logString));
+
             return await this._revert(isExecutedAsPartOfAGroupFlag);
             
         }
@@ -81,7 +93,10 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         if (needsToBeRetried) {
             this._attemptsCount++;
             verbose && (logger.log(`PinkyPromise with id: ${this._id} is being retried for the ${ordinal(this._attemptsCount)} time...`));
-            return await this; // TODO write unit test
+            const executor = this._innerPromiseExecutor;
+            const innerPromise = new Promise<TT>(executor);
+            this._innerPromiseLastResolvedValue = await innerPromise;
+            return this._innerPromiseLastResolvedValue;
         }
     }
 
@@ -111,15 +126,19 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
              * Super unlikely since we have a validation in constructor
              * But it's here to prevent hacks which cause problems
              */
-            verbose && (logger.log(`PinkyPromise with id: ${this._id} is not being reverted because revert function is not defined, returning false.`));
-            throw new ProgrammerError(`PinkyPromise with id: ${this._id} failed to revert.`);
+            verbose && (logger.log(`PinkyPromise with id: ${this._id} is not being reverted because revert function is not defined, throwing error.`));
+            throw new ProgrammerError(`PinkyPromise with id: ${this._id} is not being reverted because revert function is not defined, throwing error.`);
         }
         
         verbose && (logger.log(`PinkyPromise with id: ${this._id} is being reverted...`));
+        this._revertAttemptsCounts++;
         try {
             const revertResult = await this._config.revert();
-            if (revertResult !== false) { // to allow the user stating revert failure if explicitly returning false from revert function. if revert failure fails then whole PinkyPromise should reject
-                // TODO write unit test for the above comment's functionality
+            if (revertResult !== false) {
+                /**
+                 * To allow the user stating revert failure if explicitly returning false from revert function
+                 * If revert fails then whole PinkyPromise should reject
+                 */                
                 verbose && (logger.log(`PinkyPromise with id: ${this._id} was reverted successfully, returning true.`));
                 return true;
             } else {
@@ -127,12 +146,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             }
         } catch (e) {
 
-            // TODO test this
             if (e instanceof RevertError && this._revertAttemptsCounts < this._config.maxRevertAttempts) {
-                this._revertAttemptsCounts++;
                 verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert...`));
-                // TODO test this
-                if (isExecutedAsPartOfAGroupFlag) {
+                if (!isPartOfAGroup || isExecutedAsPartOfAGroupFlag) {
                     return await this._revert(isExecutedAsPartOfAGroupFlag);
                 }
             }
@@ -148,11 +164,14 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         return new Promise(async <TResult1 = TT, TResult2 = never>(resolve: (value: TResult1 | TResult2 | PromiseLike<TResult1 | TResult2>) => void, reject: (reason?: any) => void) => {
             // consider thread safety + scope safety for code which an external user writes
             // here the PinkyPromise resolves or rejects, regardless of the inner promise
+
             try {
                 const executor = this._innerPromiseExecutor;
                 const innerPromise = new Promise<TT>(executor);
                 this._innerPromiseLastResolvedValue = await innerPromise;
-                if (!this._config.success(this._innerPromiseLastResolvedValue)) {
+                
+                // TODO consider how the catch clause will know if the error is from the inner promise or from the rescue / success
+                if (!this._success()) {
                     if (!await this._rescue()) {
                         verbose && (logger.log(`PinkyPromise with id: ${this._id} rescue failed, returning false.`));
                         await onrejected(`PinkyPromise with id: ${this._id} rescue failed.`); 
@@ -164,6 +183,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 await onfulfilled(this._innerPromiseLastResolvedValue);
                 resolve(this._innerPromiseLastResolvedValue as unknown as TResult1);
                 return this._innerPromiseLastResolvedValue;
+                
             } catch (innerPromiseError) {
                 await onrejected(innerPromiseError); 
                 // reject(`PinkyPromise with id: ${this._id} inner promise error. ${innerPromiseError}`); // TODO do we need that?
@@ -195,8 +215,8 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         // default values
         this._config.isRetryable = this._config?.isRetryable ?? true;
         this._config.maxRetryAttempts = this._config?.maxRetryAttempts ?? 5;
-        this._config.retryMsDelay = this._config?.retryMsDelay ?? 1000;
-        this._config.revertRetryMsDelay = this._config?.revertRetryMsDelay ?? 1000;
+        this._config.retryMsDelay = this._config?.retryMsDelay ?? 1000; // TODO implement retryMsDelay
+        this._config.revertRetryMsDelay = this._config?.revertRetryMsDelay ?? 1000; // TODO implement revertRetryMsDelay
         this._config.revertOnFailure = this._config?.revertOnFailure ?? true;
         this._config.maxRevertAttempts = this._config?.maxRevertAttempts ?? 5;
 
@@ -236,7 +256,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             // using slice to reverse immutably
             // reverse as an optimization for the sequential case to avoid re-arranging the array every time
             
-            const pinkyPromiseSuccesses = pinkyPromises.map((pinkyPromise, i) => pinkyPromise._config.success(pinkyPromiseResults[i])); // TODO write unit test
+            const pinkyPromiseSuccesses = pinkyPromises.map((pinkyPromise, i) => pinkyPromise._config.success(pinkyPromiseResults[i]));
             if (pinkyPromiseSuccesses.some(pinkyPromiseSuccess => !pinkyPromiseSuccess)) {
                 revertAll();
             } else {

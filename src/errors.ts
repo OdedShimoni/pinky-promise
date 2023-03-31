@@ -1,3 +1,4 @@
+
 export class ErrorOccuredAndReverted extends Error {
   constructor(message: string) {
     super(message);
@@ -31,4 +32,12 @@ export class RevertError extends Error {
     super(message);
     this.name = "RevertError";
   }
+}
+
+export function isPinkyPromiseError(error: Error): boolean {
+  const allPinkyPromiseErrors = Object.entries(module.exports as object)
+    .map(([_key, value]) => value.name)
+    .filter(name => name !== 'isPinkyPromiseError');
+
+  return allPinkyPromiseErrors.includes(error.name);
 }
