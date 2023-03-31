@@ -258,7 +258,10 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             
             const pinkyPromiseSuccesses = pinkyPromises.map((pinkyPromise, i) => pinkyPromise._config.success(pinkyPromiseResults[i]));
             if (pinkyPromiseSuccesses.some(pinkyPromiseSuccess => !pinkyPromiseSuccess)) {
-                revertAll();
+                const revertResults = await revertAll();
+                if (revertResults.some(revertResult => !revertResult)) {
+                    throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id: ${id} failed to revert all!`);
+                }
             } else {
                 return pinkyPromiseResults;
             }
