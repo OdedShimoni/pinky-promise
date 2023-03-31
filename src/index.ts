@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PinkyPromiseGlobalConfig, PinkyPromiseGroupContext, PinkyPromiseUserConfig } from "./contract/pinky-promise.contract";
-import { ErrorOccuredAndReverted, FatalErrorNotReverted, ProgrammerError, RetriesDidNotSucceed, RevertError } from "./errors";
+import { FatalErrorNotReverted, ProgrammerError, PromiseFailed, PromiseFailedAndReverted, RetriesDidNotSucceed, RevertError } from "./errors";
 import { ordinal } from "./ordinal";
 
 export const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
@@ -15,7 +15,9 @@ const defaultGlobalConfig: PinkyPromiseGlobalConfig = {
 }
 
 export class PinkyPromise<TT> implements PromiseLike<TT> {
+
     private static _globalConfig: PinkyPromiseGlobalConfig;
+
     public static config(config: Partial<PinkyPromiseGlobalConfig> = defaultGlobalConfig) {
         if (PinkyPromise?._globalConfig) {
             throw new ProgrammerError('PinkyPromise is already configured, you can only configure it once.');
@@ -53,13 +55,17 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         const { verbose, logger } = PinkyPromise._globalConfig;
         verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed, it resolved with (${JSON.stringify(this._innerPromiseLastResolvedValue)}) and is beginning fail safe logic...`));
         try {
+            if (!this._config.isRetryable) {
+                verbose && (logger.log(`PinkyPromise with id: ${this._id} is set as not retryable, skipped retry.`));
+                throw new PromiseFailed(`PinkyPromise with id: ${this._id} is set as not retryable, skipped retry.`);
+            }
+            
             const retriedSuccessfuly = await this._retry() && this._success();
             if (retriedSuccessfuly) {
                 verbose && (logger.log(`PinkyPromise with id: ${this._id} was retried successfully, returning true.`));
                 return true;
             }
 
-            // it calls revert for every retry attempt so I patched it:
             const finishedRetries = this._attemptsCount >= this._config.maxRetryAttempts;
             if (finishedRetries) {
                 throw new RetriesDidNotSucceed(`PinkyPromise with id: ${this._id} couldn't succeed even after its retries.`);
@@ -73,23 +79,28 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 : `PinkyPromise with id: ${this._id} caught an error while retrying, reverting...`;
             verbose && (logger.log(logString));
 
-            return await this._revert(isExecutedAsPartOfAGroupFlag);
-            
+            if (!this._config.revertOnFailure) {
+                throw new PromiseFailed(`PinkyPromise with id: ${this._id} failed and is not revertable.`);
+            }
+        
+            const revertSuccessfuly = await this._revert(isExecutedAsPartOfAGroupFlag);
+            if (revertSuccessfuly) {
+                throw new PromiseFailedAndReverted(`PinkyPromise with id: ${this._id} failed and reverted successfully.`);
+            }
+            throw new FatalErrorNotReverted(`PinkyPromise with id: ${this._id} failed and failed to revert.`);
         }
     };
 
     private _retry = async function() {
         const { verbose, logger } = PinkyPromise._globalConfig;
-        
+
         const needsToBeRetried = this._config.isRetryable && this._attemptsCount < this._config.maxRetryAttempts;
-        if (!this._config.isRetryable) {
-            verbose && (logger.log(`PinkyPromise with id: ${this._id} is set as not retryable, skipping retry.`));
-            return;
-        }
+
         if (this._attemptsCount >= this._config.maxRetryAttempts) {
             verbose && (logger.log(`PinkyPromise with id: ${this._id} has reached max retry attempts, failed retry/s.`));
             return;
         }
+
         if (needsToBeRetried) {
             this._attemptsCount++;
             verbose && (logger.log(`PinkyPromise with id: ${this._id} is being retried for the ${ordinal(this._attemptsCount)} time...`));
@@ -110,7 +121,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     private _revert = async function(isExecutedAsPartOfAGroupFlag = false) {
         const { verbose, logger } = PinkyPromise._globalConfig;
 
-        if (this._config.revertOnFailure === false) { // consider adding || !this._config.revert or even just !this._config.revert
+        if (this._config.revertOnFailure === false) {
             verbose && (logger.log(`PinkyPromise with id: ${this._id} is not being reverted because revertOnFailure is set to false, returning true.`));
             return true;
         }
@@ -203,8 +214,14 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         if (!config?.revert && config?.revertOnFailure !== false) {
             throw new ProgrammerError(`${this.constructor.name} must either have a revert method or explicitly state don't revert on error with revertOnFailure: false.`);
         }
+        if (config?.revertOnFailure === false && config?.revert) {
+            throw new ProgrammerError(`${this.constructor.name} can't have both a revert method and explicitly state don't revert on error with revertOnFailure: false.`);
+        }
         if (!config?.success) {
             throw new ProgrammerError(`${this.constructor.name} must have a success method to know if it succeeded.`);
+        }
+        if (config?.revertOnFailure === false && config?.isRetryable === false) {
+            throw new ProgrammerError(`${this.constructor.name} must either be retryable or revert on failure. If you don't need both use a regular promise instead.`);
         }
 
         this._id = uuidv4();
@@ -276,9 +293,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 if (revertResults.some(revertResult => !revertResult)) {
                     throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id: ${id} failed to revert all!`);
                 }
-                throw new ErrorOccuredAndReverted(`PinkyPromise.all with id: ${id} error occured in at least a single Pinky Promise but all were reverted successfully.`);
+                throw new PromiseFailedAndReverted(`PinkyPromise.all with id: ${id} error occured in at least a single Pinky Promise but all were reverted successfully.`);
             } catch (e) {
-                if (!(e instanceof ErrorOccuredAndReverted)) {
+                if (!(e instanceof PromiseFailedAndReverted)) {
                     throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id: ${id} failed to revert all!`);
                 }
                 throw e;
@@ -318,4 +335,4 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     }
 }
 
-export { ProgrammerError, ErrorOccuredAndReverted, FatalErrorNotReverted };
+export { ProgrammerError, PromiseFailedAndReverted, FatalErrorNotReverted, PromiseFailed };

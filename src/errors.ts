@@ -1,8 +1,8 @@
 
-export class ErrorOccuredAndReverted extends Error {
+export class PromiseFailedAndReverted extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "ErrorOccuredAndReverted";
+    this.name = "PromiseFailedAndReverted";
   }
 }
 
@@ -34,10 +34,16 @@ export class RevertError extends Error {
   }
 }
 
-export function isPinkyPromiseError(error: Error): boolean {
-  const allPinkyPromiseErrors = Object.entries(module.exports as object)
-    .map(([_key, value]) => value.name)
-    .filter(name => name !== 'isPinkyPromiseError');
+export class PromiseFailed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PromiseFailed";
+  }
+}
 
-  return allPinkyPromiseErrors.includes(error.name);
+export function isPinkyPromiseError(error: Error): boolean {
+  const allPinkyPromiseErrors = Object.values(module.exports as object)
+    .filter(moduleExport => moduleExport?.name !== 'isPinkyPromiseError');
+
+  return allPinkyPromiseErrors.some(pinkyPromiseError => error instanceof pinkyPromiseError);
 }

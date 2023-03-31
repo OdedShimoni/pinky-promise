@@ -1,5 +1,6 @@
 import sinon from 'sinon';
 import * as index from './src/';
+import * as errors from './src/errors';
 index.PinkyPromise.config();
 describe('Util tests', () => {
     it('allPropertiesAreEmptyFunctions tests', () => {
@@ -25,6 +26,24 @@ describe('Util tests', () => {
         expect(index.allPropertiesAreEmptyFunctions.warn('Warn...')).toBe(undefined);
         expect(index.allPropertiesAreEmptyFunctions.error('Error...')).toBe(undefined);
     });
+
+    test('isPinkyPromiseError', () => {
+        expect(errors.isPinkyPromiseError(new errors.FatalErrorNotReverted("test error"))).toBe(true);
+        expect(errors.isPinkyPromiseError(new errors.ProgrammerError("test error"))).toBe(true);
+        expect(errors.isPinkyPromiseError(new errors.RevertError("test error"))).toBe(true);
+        expect(errors.isPinkyPromiseError(new errors.PromiseFailed("test error"))).toBe(true);
+        expect(errors.isPinkyPromiseError(new errors.PromiseFailedAndReverted("test error"))).toBe(true);
+        expect(errors.isPinkyPromiseError(new Error('random error'))).toBe(false);
+
+        const DifferentErrorWithSameNameAsAPinkyPromiseOne = class extends Error {
+            constructor(message: string) {
+                super(message);
+                this.name = "FatalErrorNotReverted";
+            }
+        };
+
+        expect(errors.isPinkyPromiseError(new DifferentErrorWithSameNameAsAPinkyPromiseOne("test error"))).toBe(false);
+    });
 });
 
 describe('Pinky Promise mechanics tests', () => {
@@ -45,12 +64,48 @@ describe('Pinky Promise mechanics tests', () => {
             expect(e instanceof index.FatalErrorNotReverted).toBe(true);
         }
     });
+
+    it('should throw "ProgrammerError" if user sets "isRetryable" to "false" and "revertOnFailure" to "false"', async () => {
+        try {
+            const pinky = new index.PinkyPromise(
+                (resolve, reject) => {
+                    resolve('resolve');
+                },
+                {
+                    success: () => false,
+                    revertOnFailure: false,
+                    isRetryable: false,
+                }
+            );
+        expect(true).toBe(false);
+        } catch (e) {
+            expect(e instanceof index.ProgrammerError).toBe(true);
+        }
+    });
+
+    it('should throw "ProgrammerError" when user sets "revertOnFailure" to "false" and sets revert method', async () => {
+        try {
+            new index.PinkyPromise(
+                (resolve, reject) => {
+                    resolve('resolve');
+                },
+                {
+                    success: () => false,
+                    revert: () => true,
+                    revertOnFailure: false,
+                }
+            );
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e instanceof index.ProgrammerError).toBe(true);
+        }
+    });
 });
 
 describe('Pinky Promise flow tests', () => {
 
     describe('Inner promise resolves flows:', () => {
-        test('the flow where promise is resolved and succeeded at the first time', async () => {
+        test('promise is resolved and succeeded at the first time', async () => {
             const pinky = new index.PinkyPromise(
                 (resolve, reject) => {
                     resolve('resolve');
@@ -75,7 +130,7 @@ describe('Pinky Promise flow tests', () => {
             expect((pinky.then as sinon.Spy).callCount).toBe(1);
         });
 
-        test('the flow where promise is resolved and NOT succeeded but succeeds in the retries', async () => {
+        test('promise is resolved and NOT succeeded but succeeds in the retries', async () => {
             let counter = 1;
             const pinky = new index.PinkyPromise(
                 (resolve, reject) => {
@@ -101,7 +156,7 @@ describe('Pinky Promise flow tests', () => {
             expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(0);
         });
 
-        test('the flow where promise is resolved and NOT succeeded but EXCEEDS number of retries and SUCCEEDS in the reverts', async () => {
+        test('promise is resolved and NOT succeeded but EXCEEDS number of retries and SUCCEEDS in the 1st revert attempt', async () => {
             let counter = 1;
             const pinky = new index.PinkyPromise(
                 (resolve, reject) => {
@@ -110,8 +165,33 @@ describe('Pinky Promise flow tests', () => {
                 },
                 {
                     success: () => false,
+                    revert: () => true,
+                }
+            );
+
+            const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+            const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+
+            try {
+                await pinky;
+                expect(true).toBe(false);
+            } catch (e) {
+                expect(e instanceof index.PromiseFailedAndReverted).toBe(true);
+                expect((pinky['_config'].success as sinon.Spy).callCount).toBe(6); // 1 for the first time and 5 for the retries
+                expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(1);
+            }
+        });
+
+        test('promise is resolved and NOT succeeded but EXCEEDS number of retries and SUCCEEDS in the 2nd revert attempt', async () => {
+            let revertCounter = 0;
+            const pinky = new index.PinkyPromise(
+                (resolve, reject) => {
+                    resolve('resolve');
+                },
+                {
+                    success: () => false,
                     revert: function() {
-                        return counter === 7
+                        return ++revertCounter === 2;
                     }
                 }
             );
@@ -119,14 +199,17 @@ describe('Pinky Promise flow tests', () => {
             const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
             const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
 
-            const res = await pinky;
-
-            expect(res).toBe('resolve');
-            expect((pinky['_config'].success as sinon.Spy).callCount).toBe(6); // 1 for the first time and 5 for the retries
-            expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(1);
+            try {
+                await pinky;
+                expect(true).toBe(false);
+            } catch (e) {
+                expect(e instanceof index.PromiseFailedAndReverted).toBe(true);
+                expect((pinky['_config'].success as sinon.Spy).callCount).toBe(6); // 1 for the first time and 5 for the retries
+                expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(2);
+            }
         });
 
-        test('the flow where promise is resolved and NOT succeeded but EXCEEDS number of retries and NOT succeeded in the reverts', async () => {
+        test('promise is resolved and NOT succeeded but EXCEEDS number of retries and NOT succeeded in the reverts', async () => {
             const pinky = new index.PinkyPromise(
                 (resolve, reject) => {
                     resolve('resolve');
@@ -151,7 +234,7 @@ describe('Pinky Promise flow tests', () => {
             }
         });
 
-        test('the flow where an error is thrown inside "success"', async () => {
+        test('an error is thrown inside "success"', async () => {
             const pinky = new index.PinkyPromise(
                 (resolve, reject) => {
                     resolve('resolve');
@@ -178,7 +261,7 @@ describe('Pinky Promise flow tests', () => {
             }
         });
 
-        test('the flow where promise is resolve and NOT succeeded but EXCEEDS number of retries and revert THROWS an error', async () => {
+        test('promise is resolve and NOT succeeded but EXCEEDS number of retries and revert THROWS an error', async () => {
             const pinky = new index.PinkyPromise(
                 (resolve, reject) => {
                     resolve('resolve');
@@ -206,7 +289,7 @@ describe('Pinky Promise flow tests', () => {
         });
 
 
-        test('the flow where pinky promise sets different number of retries and reverts', async () => {
+        test('user sets different number of retries and reverts', async () => {
             const pinky = new index.PinkyPromise(
                 (resolve, reject) => {
                     resolve('resolve');
@@ -232,15 +315,70 @@ describe('Pinky Promise flow tests', () => {
                 expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(20);
             }
         });
+
+        test('flow which user sets "isRetryable" to "false"', async () => {
+            const pinky = new index.PinkyPromise(
+                (resolve, reject) => {
+                    resolve('resolve');
+                },
+                {
+                    success: () => false,
+                    revert: () => true,
+                    isRetryable: false,
+                }
+            );
+    
+            const _pinkyThenSpy = sinon.spy(pinky, 'then');
+            const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+            const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+            const _pinkyRetry = sinon.spy(pinky, '_retry');
+    
+            try {
+                await pinky;
+                expect(true).toBe(false);
+            } catch (e) {
+                expect(e instanceof index.PromiseFailedAndReverted).toBe(true);
+                expect((pinky['_config'].success as sinon.Spy).callCount).toBe(1);
+                expect((pinky['_retry'] as sinon.Spy).callCount).toBe(0);
+                expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(1);
+                expect((pinky.then as sinon.Spy).callCount).toBe(1);
+            }
+        });
+
+        test('flow which user sets "revertOnFailure" to "false"', async () => {
+            const pinky = new index.PinkyPromise(
+                (resolve, reject) => {
+                    resolve('resolve');
+                },
+                {
+                    success: () => false,
+                    revertOnFailure: false,
+                }
+            );
+
+            const _pinkyThenSpy = sinon.spy(pinky, 'then');
+            const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+            const _pinkyRetry = sinon.spy(pinky, '_retry');
+
+            try {
+                await pinky;
+                expect(true).toBe(false);
+            } catch (e) {
+                expect(e instanceof index.PromiseFailed).toBe(true);
+                expect((pinky['_config'].success as sinon.Spy).callCount).toBe(6);
+                expect((pinky['_retry'] as sinon.Spy).callCount).toBe(5);
+                expect((pinky.then as sinon.Spy).callCount).toBe(1);
+            }
+        });
     });
 
     describe('Inner promise rejects flows:', () => {
-        it.todo('the flow where promise is rejected succeeds in the retries');
+        it.todo('promise is rejected succeeds in the retries');
     });
 
 
     describe('Group of pinky promises flows:', () => {
-        test('the flow where all promises are resolved and succeeded', async () => {
+        test('all promises are resolved and succeeded', async () => {
             const pinky1 = new index.PinkyPromise(
                 (resolve, reject) => {
                     resolve('resolve');
@@ -284,7 +422,7 @@ describe('Pinky Promise flow tests', () => {
             expect((pinky3['_config'].success as sinon.Spy).callCount).toBe(1+1);
         });
 
-        test('the flow where all promises are resolved and NOT succeeded but SUCCEEDS in the retries', async () => {
+        test('all promises are resolved and NOT succeeded but SUCCEEDS in the retries', async () => {
             let counter = 1;
             const pinky1 = new index.PinkyPromise(
                 (resolve, reject) => {
@@ -331,7 +469,7 @@ describe('Pinky Promise flow tests', () => {
             expect((pinky3['_config'].success as sinon.Spy).callCount).toBe(1 + 1);
         });
 
-        test('the flow where all promises are resolved and but even if ONE FAILS then all revert', async () => {
+        test('all promises are resolved and but even if ONE FAILS then all revert', async () => {
             let counter = 1;
             const pinky1 = new index.PinkyPromise(
                 (resolve, reject) => {
@@ -380,14 +518,14 @@ describe('Pinky Promise flow tests', () => {
                 await index.PinkyPromise.all([pinky1, pinky2, pinky3]);
                 expect(true).toBe(false);
             } catch (e) {
-                expect(e instanceof index.ErrorOccuredAndReverted).toBe(true);
+                expect(e instanceof index.PromiseFailedAndReverted).toBe(true);
                 expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
                 expect((pinky2['_config'].revert as sinon.Spy).callCount).toBe(1);
                 expect((pinky3['_config'].revert as sinon.Spy).callCount).toBe(1);
             }
         });
 
-        test('the flow where all promises are resolved but one fails and the other succeeds but 1 of the reverts fail', async () => {
+        test('all promises are resolved but one fails and the other succeeds but 1 of the reverts fail', async () => {
             let counter = 1;
             const pinky1 = new index.PinkyPromise(
                 (resolve, reject) => {
@@ -443,7 +581,7 @@ describe('Pinky Promise flow tests', () => {
             }
         });
 
-        test('the flow where all promises are resolved but one fails and the other succeeds but 1 of the reverts THROWS', async () => {
+        test('all promises are resolved but one fails and the other succeeds but 1 of the reverts THROWS', async () => {
             let counter = 1;
             const pinky1 = new index.PinkyPromise(
                 (resolve, reject) => {
@@ -500,7 +638,7 @@ describe('Pinky Promise flow tests', () => {
         });
         
         describe('The same but sequentially - tests flows and not order of execution', () => {
-            test('the flow where all promises are resolved and succeeded', async () => {
+            test('all promises are resolved and succeeded', async () => {
                 const pinky1 = new index.PinkyPromise(
                     (resolve, reject) => {
                         resolve('resolve');
@@ -535,7 +673,7 @@ describe('Pinky Promise flow tests', () => {
                 );
                 const _pinky3SuccessSpy = sinon.spy(pinky3['_config'], 'success');
     
-                const res = await index.PinkyPromise.all([pinky1, pinky2, pinky3], true);
+                const res = await index.PinkyPromise.allSeq([pinky1, pinky2, pinky3]);
     
                 expect(res).toEqual(['resolve', 'resolve', 'resolve']);
                 expect((pinky1['_config'].success as sinon.Spy).callCount).toBe(1+1); // 1 for the Pinky itself and 1 for the 'all'
@@ -544,7 +682,7 @@ describe('Pinky Promise flow tests', () => {
                 expect((pinky3['_config'].success as sinon.Spy).callCount).toBe(1+1);
             });
     
-            test('the flow where all promises are resolved and NOT succeeded but SUCCEEDS in the retries', async () => {
+            test('all promises are resolved and NOT succeeded but SUCCEEDS in the retries', async () => {
                 let counter = 1;
                 const pinky1 = new index.PinkyPromise(
                     (resolve, reject) => {
@@ -582,7 +720,7 @@ describe('Pinky Promise flow tests', () => {
                 const _pinky3SuccessSpy = sinon.spy(pinky3['_config'], 'success');
     
     
-                const res = await index.PinkyPromise.all([pinky1, pinky2, pinky3], true);
+                const res = await index.PinkyPromise.allSeq([pinky1, pinky2, pinky3]);
     
                 expect(res).toEqual(['resolve', 'resolve', 'resolve']);
                 expect((pinky1['_config'].success as sinon.Spy).callCount).toBe(2 + 1); // 2 for the Pinky itself and 1 for the 'all'
@@ -591,7 +729,7 @@ describe('Pinky Promise flow tests', () => {
                 expect((pinky3['_config'].success as sinon.Spy).callCount).toBe(1 + 1);
             });
     
-            test('the flow where all promises are resolved and but even if ONE FAILS then all revert', async () => {
+            test('all promises are resolved and but even if ONE FAILS then all revert', async () => {
                 let counter = 1;
                 const pinky1 = new index.PinkyPromise(
                     (resolve, reject) => {
@@ -637,10 +775,10 @@ describe('Pinky Promise flow tests', () => {
                 const _pinky3RevertSpy = sinon.spy(pinky3['_config'], 'revert');
     
                 try {
-                    await index.PinkyPromise.all([pinky1, pinky2, pinky3], true);
+                    await index.PinkyPromise.allSeq([pinky1, pinky2, pinky3]);
                     expect(true).toBe(false);
                 } catch (e) {
-                    expect(e instanceof index.ErrorOccuredAndReverted).toBe(true);
+                    expect(e instanceof index.PromiseFailedAndReverted).toBe(true);
                     expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
                     expect((pinky2['_config'].revert as sinon.Spy).callCount).toBe(1);
                     expect((pinky3['_config'].revert as sinon.Spy).callCount).toBe(1);
