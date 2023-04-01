@@ -94,6 +94,48 @@ describe('Group of pinky promises flows:', () => {
         expect((pinky3['_config'].success as sinon.Spy).callCount).toBe(1 + 1);
     });
 
+    test('a promise throws', async () => {
+        const pinky1 = new PinkyPromise(
+            (resolve, reject) => {
+                throw new Error('error');
+                resolve('resolve');
+            },
+            {
+                success: () => true,
+                revert: () => true,
+            }
+        );
+
+        const pinky2 = new PinkyPromise(
+            (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => true,
+                revert: () => true,
+            }
+        );
+
+        const pinky3 = new PinkyPromise(
+            (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => true,
+                revert: () => true,
+            }
+        );
+
+        try {
+            await PinkyPromise.all([pinky1, pinky2, pinky3]);
+            expect(true).toBe(false);
+        } catch (err) {
+            expect(err).toBeInstanceOf(errors.PromiseFailedAndReverted);
+        }
+
+
+    });
+
     test('all promises are resolved and but even if ONE FAILS then all revert', async () => {
         let counter = 1;
         const pinky1 = new PinkyPromise(

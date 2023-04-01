@@ -132,6 +132,31 @@ describe('Inner promise resolves flows:', () => {
         }
     });
 
+    test('an error is thrown inside the executor', async () => {
+        const pinky = new PinkyPromise(
+            (resolve, reject) => {
+                throw new Error('error in executor');
+            },
+            {
+                success: () => true,
+                revert: () => false,
+            }
+        );
+
+        const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+        const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+
+        try {
+            await pinky;
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e instanceof Error).toBe(true);
+            expect(e.message).toBe('error in executor');
+            expect((pinky['_config'].success as sinon.Spy).callCount).toBe(0);
+            expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(0);
+        }
+    });
+
     test('an error is thrown inside "success"', async () => {
         const pinky = new PinkyPromise(
             (resolve, reject) => {
