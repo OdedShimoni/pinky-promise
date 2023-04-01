@@ -1,8 +1,9 @@
+import * as sinon from "sinon";
 import { errors, PinkyPromise } from "../src";
 PinkyPromise.config();
 
 describe('Pinky Promise mechanics tests', () => {
-    it('should throw "FatalErrorNotReverted" if revert is attempted and revert function which the user inserts returns an explicit "false"', async () => {
+    it('should throw "FatalErrorNotReverted" if revert is attempted and the function returns explicit "false" in all its attempts.', async () => {
         const pinky = new PinkyPromise(
             (resolve, reject) => {
                 resolve('resolve');
@@ -13,11 +14,14 @@ describe('Pinky Promise mechanics tests', () => {
             }
         );
 
+        const _revertSpy = sinon.spy(pinky, '_revert');
+
         try {
             await pinky;
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.FatalErrorNotReverted).toBe(true);
+            expect(_revertSpy.callCount).toBe(5);
         }
     });
 

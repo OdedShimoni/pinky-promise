@@ -44,7 +44,7 @@ describe('isPinkyPromiseError', () => {
         const DifferentErrorWithSameNameAsAPinkyPromiseOne = class extends Error {
             constructor(message: string) {
                 super(message);
-                this.name = "FatalErrorNotReverted";
+                this.name = "ProgrammerError";
             }
         };
         expect(errors.isPinkyPromiseError(new DifferentErrorWithSameNameAsAPinkyPromiseOne("test error"))).toBe(false);
