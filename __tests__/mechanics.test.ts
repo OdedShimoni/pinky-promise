@@ -3,7 +3,7 @@ import { errors, PinkyPromise } from "../src";
 PinkyPromise.config();
 
 describe('Pinky Promise mechanics tests', () => {
-    it('should throw "FatalErrorNotReverted" if revert is attempted and the function returns explicit "false" in all its attempts.', async () => {
+    it('should throw "FatalErrorNotReverted" if revert is attempted and the function returns explicit "false" in all its attempts', async () => {
         const pinky = new PinkyPromise(
             (resolve, reject) => {
                 resolve('resolve');
