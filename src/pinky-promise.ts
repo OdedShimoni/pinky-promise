@@ -38,8 +38,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     private _revertAttemptsCounts = 0;
     
     public _groupContext?: PinkyPromiseGroupContext;
-    // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
-    
+
 
     private _success: Function = function(): boolean {
         const { verbose, logger } = PinkyPromise._globalConfig;
@@ -111,13 +110,6 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         }
     }
 
-    /**
-     * * Contribution
-     * * For the future: consider changing PinkyPromise to be made out of 2 structures:
-     * * 1. A self retryable promise
-     * * 2. PinkyPromise extends SelfRetryablePromise: A revertable promise which extends the self retryable promise
-     * * This way we can make the revert method of a self retryable promise and save code
-     */
     private _revert = async function(isExecutedAsPartOfAGroupFlag = false) {
         const { verbose, logger } = PinkyPromise._globalConfig;
 
@@ -169,6 +161,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         }
     }
 
+    // I changed type of 'then' method to return 'Promise' instead of 'PromiseLike' so we can use 'catch' method when working with 'then' function instead of 'await'
     then: <TResult1 = TT, TResult2 = never>(onfulfilled?: ((value: TT) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null) => Promise<TResult1 | TResult2> = function(onfulfilled, onrejected) {
         const { verbose, logger } = PinkyPromise._globalConfig;
         
@@ -252,10 +245,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     static async all<T>(pinkyPromises: (PinkyPromise<T>)[], isSequential = false): Promise<T[] | void> {
         const id = uuidv4();
 
-        const { verbose, logger } = PinkyPromise._globalConfig; // temp, get from global config when available
+        const { verbose, logger } = PinkyPromise._globalConfig;
 
         verbose && (logger.log(`PinkyPromise.all with id: ${id} is being executed...`));
-        // if any of 'pinkyPromises' reject, call '_rescue' on all of them:
         try {
 
             const pinkyPromiseAddToGroupContext = (pinkyPromise: PinkyPromise<T>) => {
@@ -316,7 +308,6 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 // Revert will always be concurrent even if all is sequential, because I can't see a reason to revert sequentially
             } catch (revertError) {
                 logger.error(`Fatal Error!: PinkyPromise.all with id:${id} revert error!`, revertError);
-
                 // test what if one of the first reverts rejects and the error is thrown, if the rest of the reverts are still executed or it stops
                 throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id:${id} revert error!`);
             }
