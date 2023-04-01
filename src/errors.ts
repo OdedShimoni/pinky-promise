@@ -20,6 +20,14 @@ export class ProgrammerError extends Error {
   }
 }
 
+export class PromiseFailed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PromiseFailed";
+  }
+}
+
+// internal errors:
 export class RetriesDidNotSucceed extends Error {
     constructor(message: string) {
         super(message);
@@ -31,13 +39,6 @@ export class RevertError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "RevertError";
-  }
-}
-
-export class PromiseFailed extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "PromiseFailed";
   }
 }
 

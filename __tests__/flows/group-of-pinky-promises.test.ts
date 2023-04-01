@@ -261,6 +261,121 @@ describe('Group of pinky promises flows:', () => {
             expect(e instanceof errors.FatalErrorNotReverted).toEqual(true);
         }
     });
+
+    test('one of the promises fail but the other is configured "isRetryable": false', async () => {
+        const pinky1 = new PinkyPromise(
+            (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => false,
+                revert: function() {
+                    return true;
+                },
+                isRetryable: false,
+            }
+        );
+        const _pinky1SuccessSpy = sinon.spy(pinky1['_config'], 'success');
+        const _pinky1RetrySpy = sinon.spy(pinky1, '_retry');
+        const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
+
+        const pinky2 = new PinkyPromise(
+            (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => true,
+                revert: function() {
+                    return true;
+                },
+            }
+        );
+        const _pinky2SuccessSpy = sinon.spy(pinky2['_config'], 'success');
+        const _pinky2RevertSpy = sinon.spy(pinky2['_config'], 'revert');
+
+        try {
+            await PinkyPromise.all([pinky1, pinky2]);
+            expect(true).toBe(false);
+        } catch (e) {
+            expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
+            expect((pinky1['_retry'] as sinon.Spy).callCount).toBe(0);
+            expect((pinky1['_config'].success as sinon.Spy).callCount).toBe(1);
+            expect((pinky2['_config'].revert as sinon.Spy).callCount).toBe(1);
+            expect(e instanceof errors.PromiseFailedAndReverted).toEqual(true);
+        }
+    });
+
+    test('one of the promises fail but the other is configured "revertOnFailure": false', async () => {
+        const pinky1 = new PinkyPromise(
+            (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => false,
+                revert: function() {
+                    return true;
+                }
+            }
+        );
+        const _pinky1SuccessSpy = sinon.spy(pinky1['_config'], 'success');
+        const _pinky1RetrySpy = sinon.spy(pinky1, '_retry');
+        const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
+
+        const pinky2 = new PinkyPromise(
+            (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => true,
+                revertOnFailure: false,
+            }
+        );
+        const _pinky2SuccessSpy = sinon.spy(pinky2['_config'], 'success');
+
+        try {
+            await PinkyPromise.all([pinky1, pinky2]);
+            expect(true).toBe(false);
+        } catch (e) {
+            expect((pinky1['_config'].revert as sinon.Spy).callCount).toBe(1);
+            expect((pinky1['_retry'] as sinon.Spy).callCount).toBe(5);
+            expect((pinky1['_config'].success as sinon.Spy).callCount).toBe(6);
+            expect(e instanceof errors.PromiseFailedAndReverted).toEqual(true);
+        }
+    });
+
+    test('one of the promises fail but both are configured "revertOnFailure": false', async () => {
+        const pinky1 = new PinkyPromise(
+            (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => false,
+                revertOnFailure: false,
+            }
+        );
+        const _pinky1SuccessSpy = sinon.spy(pinky1['_config'], 'success');
+        const _pinky1RetrySpy = sinon.spy(pinky1, '_retry');
+
+        const pinky2 = new PinkyPromise(
+            (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => true,
+                revertOnFailure: false,
+            }
+        );
+        const _pinky2SuccessSpy = sinon.spy(pinky2['_config'], 'success');
+
+        try {
+            await PinkyPromise.all([pinky1, pinky2]);
+            expect(true).toBe(false);
+        } catch (e) {
+            expect((pinky1['_retry'] as sinon.Spy).callCount).toBe(5);
+            expect((pinky1['_config'].success as sinon.Spy).callCount).toBe(6);
+            expect(e instanceof errors.PromiseFailed).toEqual(true);
+        }
+    });
     
     describe('The same but sequentially - tests flows and not order of execution', () => {
         test('all promises are resolved and succeeded', async () => {

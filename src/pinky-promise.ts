@@ -288,6 +288,10 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 throw e;
             }
 
+            if (pinkyPromises.every(pinkyPromise => pinkyPromise._config.revertOnFailure === false)) {
+                throw new PromiseFailed(`PinkyPromise.all with id: ${id} error occured in at least a single Pinky Promise and all were configured to not revert on failure.`);
+            }
+
             try {
                 const revertResults = await revertAll();
                 if (revertResults.some(revertResult => !revertResult)) {
