@@ -192,7 +192,7 @@ describe('Group of pinky promises flows:', () => {
         }
     });
 
-    test('all promises are resolved but one fails and the other succeeds but 1 of the reverts fail', async () => {
+    test('all promises are resolved but one fails and the other succeeds but 1 of the reverts fails', async () => {
         let counter = 1;
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
@@ -304,7 +304,7 @@ describe('Group of pinky promises flows:', () => {
         }
     });
 
-    test('one of the promises fail but the other is configured "isRetryable": false', async () => {
+    test('one of the promises fails but the other is configured "isRetryable": false', async () => {
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
                 resolve('resolve');
@@ -347,7 +347,7 @@ describe('Group of pinky promises flows:', () => {
         }
     });
 
-    test('one of the promises fail but the other is configured "revertOnFailure": false', async () => {
+    test('one of the promises fails but the other is configured "revertOnFailure": false', async () => {
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
                 resolve('resolve');
@@ -385,7 +385,7 @@ describe('Group of pinky promises flows:', () => {
         }
     });
 
-    test('one of the promises fail but both are configured "revertOnFailure": false', async () => {
+    test('one of the promises fails but both are configured "revertOnFailure": false', async () => {
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
                 resolve('resolve');
@@ -419,7 +419,7 @@ describe('Group of pinky promises flows:', () => {
         }
     });
 
-    test('one of the promises fail but the other fails to revert', async () => {
+    test('one of the promises fails but the other fails to revert', async () => {
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
                 resolve('resolve');
