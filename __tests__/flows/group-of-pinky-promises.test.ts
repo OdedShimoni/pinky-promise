@@ -377,7 +377,7 @@ describe('Group of pinky promises flows:', () => {
         }
     });
 
-    test('one of the promises fail but the other fail to revert', async () => {
+    test('one of the promises fail but the other fails to revert', async () => {
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
                 resolve('resolve');
