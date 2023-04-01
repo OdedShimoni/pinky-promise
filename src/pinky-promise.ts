@@ -45,7 +45,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         try {
             return this._config.success(this._innerPromiseLastResolvedValue);
         } catch (e) {
-            verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while calling 'success' method.`, e));
+            logger.error(`PinkyPromise with id: ${this._id} caught an error while calling 'success' method.`, e);
             throw new FatalErrorNotReverted(`PinkyPromise with id: ${this._id} caught an error while calling 'success' method.`);
         }
     };
@@ -76,7 +76,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             const logString = (e instanceof RetriesDidNotSucceed)
                 ? `PinkyPromise with id: ${this._id} failed its retries, reverting...`
                 : `PinkyPromise with id: ${this._id} caught an error while retrying, reverting...`;
-            verbose && (logger.log(logString));
+            logger.log(logString);
 
             if (!this._config.revertOnFailure) {
                 throw new PromiseFailed(`PinkyPromise with id: ${this._id} failed and is not revertable.`);
@@ -142,7 +142,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                  * To allow the user stating revert failure if explicitly returning false from revert function
                  * If revert fails then whole PinkyPromise should reject
                  */                
-                verbose && (logger.log(`PinkyPromise with id: ${this._id} was reverted successfully, returning true.`));
+                logger.log(`PinkyPromise with id: ${this._id} was reverted successfully, returning true.`);
                 return true;
             } else {
                 throw new RevertError(`PinkyPromise with id: ${this._id} failed to revert.`);
@@ -150,7 +150,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         } catch (e) {
 
             if (e instanceof RevertError && this._revertAttemptsCounts < this._config.maxRevertAttempts) {
-                verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert...`));
+                verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert again...`));
                 if (!isPartOfAGroup || isExecutedAsPartOfAGroupFlag) {
                     return await this._revert(isExecutedAsPartOfAGroupFlag);
                 }
@@ -177,9 +177,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 // TODO consider how the catch clause will know if the error is from the inner promise or from the rescue / success
                 if (!this._success()) {
                     if (!await this._rescue()) {
-                        verbose && (logger.log(`PinkyPromise with id: ${this._id} rescue failed, returning false.`));
-                        await onrejected(`PinkyPromise with id: ${this._id} rescue failed.`); 
-                        // reject(`PinkyPromise with id: ${this._id} rescue failed.`);
+                        verbose && (logger.log(`PinkyPromise with id: ${this._id} fail safe logic failed, returning false.`));
+                        await onrejected(`PinkyPromise with id: ${this._id} fail safe logic failed.`); 
+                        // reject(`PinkyPromise with id: ${this._id} fail safe logic failed.`);
                         return false;
                     }
                 }
@@ -191,7 +191,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             } catch (innerPromiseError) {
                 await onrejected(innerPromiseError); 
                 // reject(`PinkyPromise with id: ${this._id} inner promise error. ${innerPromiseError}`); // TODO do we need that?
-                verbose && (logger.error(`PinkyPromise with id: ${this._id} inner promise error.`, innerPromiseError));
+                logger.error(`PinkyPromise with id: ${this._id} inner promise error.`, innerPromiseError);
                 return false;
             }
         });
