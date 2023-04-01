@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { PinkyPromiseGlobalConfig, PinkyPromiseGroupContext, PinkyPromiseUserConfig } from "./contract/pinky-promise.contract";
 import { FatalErrorNotReverted, ProgrammerError, PromiseFailed, PromiseFailedAndReverted, RetriesDidNotSucceed, RevertError } from "./errors";
-import { ordinal } from "./ordinal";
+import { ordinal } from "./utility/ordinal";
 
 export const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
     get: function(_target, _prop) {

@@ -1,6 +1,6 @@
 import { errors, PinkyPromise } from '../src';
-import { ordinal } from '../src/ordinal';
 import { allPropertiesAreEmptyFunctions } from '../src/pinky-promise';
+import { ordinal } from '../src/utility/ordinal';
 PinkyPromise.config();
 
 it('allPropertiesAreEmptyFunctions tests', () => {
