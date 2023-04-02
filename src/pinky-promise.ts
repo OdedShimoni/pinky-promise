@@ -104,9 +104,13 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             this._attemptsCount++;
             verbose && (logger.log(`PinkyPromise with id: ${this._id} is being retried for the ${ordinal(this._attemptsCount)} time...`));
             const executor = this._innerPromiseExecutor;
-            const innerPromise = new Promise<TT>(executor);
-            this._innerPromiseLastResolvedValue = await innerPromise;
-            return this._innerPromiseLastResolvedValue;
+            try {
+                const innerPromise = new Promise<TT>(executor);
+                this._innerPromiseLastResolvedValue = await innerPromise;
+                return this._innerPromiseLastResolvedValue;
+            } catch (e) {
+                return this._retry();
+            }
         }
     }
 
@@ -189,10 +193,19 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 return this._innerPromiseLastResolvedValue;
                 
             } catch (innerPromiseError) {
-                await onrejected(innerPromiseError); 
-                // reject(`PinkyPromise with id: ${this._id} inner promise error. ${innerPromiseError}`); // TODO do we need that?
-                logger.error(`PinkyPromise with id: ${this._id} inner promise error.`, innerPromiseError);
-                return false;
+
+                // TODO make it look normal and make flow of throw inside 'success' more precise
+                const needsToBeRetried = this._config.isRetryable && this._attemptsCount < this._config.maxRetryAttempts;
+                try {
+                    if (!needsToBeRetried || !await this._rescue()) {
+                        throw innerPromiseError;
+                    }
+                } catch (e) {
+                    await onrejected(e); 
+                    // reject(`PinkyPromise with id: ${this._id} rescue error. ${e}`); // TODO do we need that?
+                    logger.error(`PinkyPromise with id: ${this._id} rescue error.`, e);
+                    return false;
+                }
             }
         });
     };
@@ -225,8 +238,8 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         // default values
         this._config.isRetryable = this._config?.isRetryable ?? true;
         this._config.maxRetryAttempts = this._config?.maxRetryAttempts ?? 5;
-        this._config.retryMsDelay = this._config?.retryMsDelay ?? 1000; // TODO implement retryMsDelay
-        this._config.revertRetryMsDelay = this._config?.revertRetryMsDelay ?? 1000; // TODO implement revertRetryMsDelay
+        // this._config.retryMsDelay = this._config?.retryMsDelay ?? 1000; // TODO implement retryMsDelay
+        // this._config.revertRetryMsDelay = this._config?.revertRetryMsDelay ?? 1000; // TODO implement revertRetryMsDelay
         this._config.revertOnFailure = this._config?.revertOnFailure ?? true;
         this._config.maxRevertAttempts = this._config?.maxRevertAttempts ?? 5;
 
@@ -270,6 +283,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 logger.info(`PinkyPromise.all with id: ${id} - some Pinky Promises couldn't succeed even after retries. Proceeding to revert all...`);
                 throw new RetriesDidNotSucceed(`PinkyPromise.all with id: ${id} - some Pinky Promises couldn't succeed even after retries.`);
             } else {
+                verbose && (logger.log(`PinkyPromise.all with id: ${id} finished successfuly.`));
                 return pinkyPromiseResults;
             }
 
