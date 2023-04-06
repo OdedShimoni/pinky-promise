@@ -40,17 +40,23 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     public _groupContext?: PinkyPromiseGroupContext;
 
 
-    private _success: Function = function(): boolean {
+    private _success = async function(): Promise<boolean> {
         const { verbose, logger } = PinkyPromise._globalConfig;
         try {
             return this._config.success(this._innerPromiseLastResolvedValue);
         } catch (e) {
-            logger.error(`PinkyPromise with id: ${this._id} caught an error while calling 'success' method.`, e);
-            throw new FatalErrorNotReverted(`PinkyPromise with id: ${this._id} caught an error while calling 'success' method.`);
+            logger.error(`PinkyPromise with id: ${this._id} user input 'success' method error. PinkyPromise will attempt to revert.`, e);
+            try {
+                await this._revert();
+            } catch (revertError) {
+                logger.error(`PinkyPromise with id: ${this._id} user input 'revert' method error.`, revertError);
+                throw new FatalErrorNotReverted(`PinkyPromise with id: ${this._id} caught an error while calling 'success' method. Couldn't revert.`);
+            }
+            throw new PromiseFailedAndReverted(`PinkyPromise with id: ${this._id} caught an error while calling 'success' method. Reverted successfully.`);
         }
     };
 
-    private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false): Promise<boolean> {
+    private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false): Promise<true | Error> {
         const { verbose, logger } = PinkyPromise._globalConfig;
         verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed, it resolved with (${JSON.stringify(this._innerPromiseLastResolvedValue)}) and is beginning fail safe logic...`));
         try {
@@ -59,7 +65,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 throw new PromiseFailed(`PinkyPromise with id: ${this._id} is set as not retryable, skipped retry.`);
             }
             
-            const retriedSuccessfuly = await this._retry() && this._success();
+            const retriedSuccessfuly = await this._retry() && await this._success();
             if (retriedSuccessfuly) {
                 verbose && (logger.log(`PinkyPromise with id: ${this._id} was retried successfully, returning true.`));
                 return true;
@@ -114,7 +120,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         }
     }
 
-    private _revert = async function(isExecutedAsPartOfAGroupFlag = false) {
+    private _revert = async function(isExecutedAsPartOfAGroupFlag = false): Promise<true | Error> {
         const { verbose, logger } = PinkyPromise._globalConfig;
 
         if (this._config.revertOnFailure === false) {
@@ -178,35 +184,39 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 const innerPromise = new Promise<TT>(executor);
                 this._innerPromiseLastResolvedValue = await innerPromise;
                 
-                // TODO consider how the catch clause will know if the error is from the inner promise or from the rescue / success
-                if (!this._success()) {
-                    if (!await this._rescue()) {
-                        verbose && (logger.log(`PinkyPromise with id: ${this._id} fail safe logic failed, returning false.`));
-                        await onrejected(`PinkyPromise with id: ${this._id} fail safe logic failed.`); 
-                        // reject(`PinkyPromise with id: ${this._id} fail safe logic failed.`);
-                        return false;
-                    }
-                }
-                
-                await onfulfilled(this._innerPromiseLastResolvedValue);
-                resolve(this._innerPromiseLastResolvedValue as unknown as TResult1);
-                return this._innerPromiseLastResolvedValue;
-                
             } catch (innerPromiseError) {
-
-                // TODO make it look normal and make flow of throw inside 'success' more precise
-                const needsToBeRetried = this._config.isRetryable && this._attemptsCount < this._config.maxRetryAttempts;
                 try {
-                    if (!needsToBeRetried || !await this._rescue()) {
-                        throw innerPromiseError;
-                    }
-                } catch (e) {
-                    await onrejected(e); 
-                    // reject(`PinkyPromise with id: ${this._id} rescue error. ${e}`); // TODO do we need that?
-                    logger.error(`PinkyPromise with id: ${this._id} rescue error.`, e);
-                    return false;
+                    await this._rescue();
+                } catch (rescueError) {
+                    verbose && (logger.log(`PinkyPromise with id: ${this._id} fail safe logic failed, returning false.`));
+                    // reject(rescueError);
+                    await onrejected(rescueError); 
+                    return;
                 }
             }
+
+            // TODO write tests to this edge case
+            let success;
+            try {
+                success = await this._success();
+            } catch (successError) {
+                await onrejected(successError);
+                return;
+            }
+            
+            if (!success) {
+                try {
+                    await this._rescue();
+                } catch (rescueError) {
+                    verbose && (logger.log(`PinkyPromise with id: ${this._id} fail safe logic failed, returning false.`));
+                    // reject(rescueError);
+                    await onrejected(rescueError); 
+                    return;
+                }
+            }
+            await onfulfilled(this._innerPromiseLastResolvedValue);
+            resolve(this._innerPromiseLastResolvedValue as unknown as TResult1);
+            return this._innerPromiseLastResolvedValue;
         });
     };
     

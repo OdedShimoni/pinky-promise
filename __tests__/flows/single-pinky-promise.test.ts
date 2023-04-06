@@ -142,6 +142,36 @@ describe('Inner promise resolves flows:', () => {
                     return true;
                 },
                 revert: function() {
+                    return true;
+                },
+            }
+        );
+
+        const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+        const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+        const _pinkyRetrySpy = sinon.spy(pinky, '_retry');
+
+        try {
+            await pinky;
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
+            expect((pinky['_config'].success as sinon.Spy).callCount).toBe(0); // 0 because the promise is not resolved and error is thrown before 'success' method is called
+            expect((pinky['_retry'] as sinon.Spy).callCount).toBe(6); // 5 actual retries and 1 returns before actually retrying
+            expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(1);
+        }
+    });
+
+    test('an error is thrown inside the executor AND revert fails', async () => {
+        const pinky = new PinkyPromise(
+            (resolve, reject) => {
+                throw new Error('error in executor');
+            },
+            {
+                success: function() {
+                    return true;
+                },
+                revert: function() {
                     return false;
                 },
             }
@@ -155,13 +185,40 @@ describe('Inner promise resolves flows:', () => {
             await pinky;
             expect(true).toBe(false);
         } catch (e) {
+            expect(e instanceof errors.FatalErrorNotReverted).toBe(true);
             expect((pinky['_config'].success as sinon.Spy).callCount).toBe(0); // 0 because the promise is not resolved and error is thrown before 'success' method is called
             expect((pinky['_retry'] as sinon.Spy).callCount).toBe(6); // 5 actual retries and 1 returns before actually retrying
             expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(5);
         }
     });
 
-    test('an error is thrown inside "success"', async () => {
+    test('an error is thrown inside "success" and promise is reverted', async () => {
+        const pinky = new PinkyPromise(
+            (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => {
+                    throw new Error('error while checking success');
+                },
+                revert: () => true,
+            }
+        );
+
+        const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+        const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+
+        try {
+            await pinky;
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
+            expect((pinky['_config'].success as sinon.Spy).callCount).toBe(1);
+            expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(1);
+        }
+    });
+
+    test('an error is thrown inside "success" and revert FAILS', async () => {
         const pinky = new PinkyPromise(
             (resolve, reject) => {
                 resolve('resolve');
