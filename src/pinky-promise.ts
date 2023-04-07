@@ -110,6 +110,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             this._attemptsCount++;
             verbose && (logger.log(`PinkyPromise with id: ${this._id} is being retried for the ${ordinal(this._attemptsCount)} time...`));
             const executor = this._innerPromiseExecutor;
+            await new Promise((resolve) => setTimeout(resolve, this._config.retryMsDelay));
             try {
                 const innerPromise = new Promise<TT>(executor);
                 this._innerPromiseLastResolvedValue = await innerPromise;
@@ -162,6 +163,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             if (e instanceof RevertError && this._revertAttemptsCounts < this._config.maxRevertAttempts) {
                 verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert again...`));
                 if (!isPartOfAGroup || isExecutedAsPartOfAGroupFlag) {
+                    await new Promise((resolve) => setTimeout(resolve, this._config.revertRetryMsDelay));
                     return this._revert(isExecutedAsPartOfAGroupFlag);
                 }
             }
@@ -254,8 +256,8 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         // default values
         this._config.isRetryable = this._config?.isRetryable ?? true;
         this._config.maxRetryAttempts = this._config?.maxRetryAttempts ?? 5;
-        // this._config.retryMsDelay = this._config?.retryMsDelay ?? 1000; // TODO implement retryMsDelay
-        // this._config.revertRetryMsDelay = this._config?.revertRetryMsDelay ?? 1000; // TODO implement revertRetryMsDelay
+        this._config.retryMsDelay = this._config?.retryMsDelay ?? 100;
+        this._config.revertRetryMsDelay = this._config?.revertRetryMsDelay ?? this._config.retryMsDelay;
         this._config.revertOnFailure = this._config?.revertOnFailure ?? true;
         this._config.maxRevertAttempts = this._config?.maxRevertAttempts ?? 5;
 
