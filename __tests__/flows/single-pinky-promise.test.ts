@@ -5,6 +5,13 @@ PinkyPromise.config();
 const DEFAULT_RETRY_ATTEMPTS = 5;
 const DEFAULT_REVERT_ATTEMPTS = 5;
 const ASYNC_WAIT_TIME_MS = 100;
+const createExecutorPromiseMock = function() {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            resolve('resolve');
+        }, ASYNC_WAIT_TIME_MS);
+    });
+};
 
 describe('Sync flows:', () => {
     it.todo('Add reject flows');
@@ -360,6 +367,135 @@ describe('Sync flows:', () => {
 });
 
 describe('Async flows:', () => {
+    test('promise is resolved and succeeded at the first time', async () => {
+        const pinky = new PinkyPromise((resolve, reject) => {
+                resolve( createExecutorPromiseMock() )
+            }
+            ,
+            {
+                success: () => true,
+                revert: () => false,
+            }
+        );
+        const _pinkyThenSpy = sinon.spy(pinky, 'then');
+        const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+        const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+
+        const res = await pinky;
+
+        expect(res).toBe('resolve');
+        /**
+         * I hack here to access the private property _config
+         */
+        expect((pinky['_config'].success as sinon.Spy).callCount).toBe(1);
+        expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(0);
+        expect((pinky.then as sinon.Spy).callCount).toBe(1);
+    });
+
+    test('promise is resolved and NOT succeeded but succeeds in the retries', async () => {
+        let counter = 1;
+        const pinky = new PinkyPromise(
+            (resolve, reject) => {
+                counter++;
+                resolve( createExecutorPromiseMock() );
+            },
+            {
+                success: function() {
+                    return counter === 4
+                },
+                revert: () => false,
+            }
+        );
+
+        const _pinkyThenSpy = sinon.spy(pinky, 'then');
+        const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+        const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+        
+        const res = await pinky;
+
+        expect(res).toBe('resolve');
+        expect((pinky['_config'].success as sinon.Spy).callCount).toBe(3);
+        expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(0);
+    });
+
+    test('promise is resolved and NOT succeeded but EXCEEDS number of retries and SUCCEEDS in the 1st revert attempt', async () => {
+        let counter = 1;
+        const pinky = new PinkyPromise(
+            (resolve, reject) => {
+                counter++;
+                resolve( createExecutorPromiseMock()) ;
+            },
+            {
+                success: () => false,
+                revert: () => true,
+            }
+        );
+
+        const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+        const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+
+        try {
+            await pinky;
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
+            expect((pinky['_config'].success as sinon.Spy).callCount).toBe(DEFAULT_RETRY_ATTEMPTS + 1); // 1 for the first time and 5 for the retries
+            expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(1);
+        }
+    });
+
+    test('promise is resolved and NOT succeeded but EXCEEDS number of retries and SUCCEEDS in the 2nd revert attempt', async () => {
+        let revertCounter = 0;
+        const pinky = new PinkyPromise(
+            (resolve, reject) => {
+                resolve( createExecutorPromiseMock() );
+            },
+            {
+                success: () => false,
+                revert: function() {
+                    return ++revertCounter === 2;
+                }
+            }
+        );
+
+        const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+        const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+
+        try {
+            await pinky;
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
+            expect((pinky['_config'].success as sinon.Spy).callCount).toBe(DEFAULT_RETRY_ATTEMPTS + 1); // 1 for the first time and 5 for the retries
+            expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(2);
+        }
+    });
+
+    test('promise is resolved and NOT succeeded but EXCEEDS number of retries and NOT succeeded in the reverts', async () => {
+        const pinky = new PinkyPromise(
+            (resolve, reject) => {
+                resolve( createExecutorPromiseMock() );
+            },
+            {
+                success: () => false,
+                revert: () => false,
+            }
+        );
+
+        const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
+        const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
+        
+        try {
+            await pinky;
+            expect(true).toBe(false);
+        }
+        catch (e) {
+            expect(e instanceof errors.FatalErrorNotReverted).toBe(true);
+            expect((pinky['_config'].success as sinon.Spy).callCount).toBe(DEFAULT_RETRY_ATTEMPTS + 1); // 1 for the first time and 5 for the retries
+            expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(DEFAULT_REVERT_ATTEMPTS);
+        }
+    });
+
     test('"revert" is async', async () => {
         const pinky = new PinkyPromise(
             (resolve, reject) => {

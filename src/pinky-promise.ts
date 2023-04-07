@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { PinkyPromiseGlobalConfig, PinkyPromiseGroupContext, PinkyPromiseUserConfig } from "./contract/pinky-promise.contract";
-import { FatalErrorNotReverted, ProgrammerError, PromiseFailed, PromiseFailedAndReverted, RetriesDidNotSucceed, RevertError } from "./errors";
+import { FatalErrorNotReverted, isPinkyPromiseError, ProgrammerError, PromiseFailed, PromiseFailedAndReverted, RetriesDidNotSucceed, RevertError } from "./errors";
 import { ordinal } from "./utility/ordinal";
 
 export const allPropertiesAreEmptyFunctions: any = new Proxy({}, {
@@ -33,6 +33,8 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
 
     private _innerPromiseLastResolvedValue: TT;
 
+    private _doNotRescue: true | undefined | null;
+
     private _attemptsCount = 0;
 
     private _revertAttemptsCounts = 0;
@@ -57,8 +59,21 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     };
 
     private _rescue: Function = async function(isExecutedAsPartOfAGroupFlag = false): Promise<true | Error> {
+        if (this._doNotRescue) return;
+        
         const { verbose, logger } = PinkyPromise._globalConfig;
-        verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed, it resolved with (${JSON.stringify(this._innerPromiseLastResolvedValue)}) and is beginning fail safe logic...`));
+        
+        /**
+         * This try catch is to TypeError: Converting circular structure to JSON
+         */
+        let lastResolvedValueAsString;
+        try {
+            lastResolvedValueAsString = JSON.stringify(this._innerPromiseLastResolvedValue);
+        } catch (_) {
+            lastResolvedValueAsString = 'Circular structure / couldn\'t stringify.';
+        }
+
+        verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed, it resolved with (${lastResolvedValueAsString}) and is beginning fail safe logic...`));
         try {
             if (!this._config.isRetryable) {
                 verbose && (logger.log(`PinkyPromise with id: ${this._id} is set as not retryable, skipped retry.`));
@@ -79,10 +94,11 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
 
         } catch (e) {
             
-            const logString = (e instanceof RetriesDidNotSucceed)
-                ? `PinkyPromise with id: ${this._id} failed its retries, reverting...`
-                : `PinkyPromise with id: ${this._id} caught an error while retrying, reverting...`;
-            logger.log(logString);
+            if (isPinkyPromiseError(e)) {
+                logger.log(`PinkyPromise with id: ${this._id} failed its retries, reverting...`);
+            } else {
+                logger.log(`PinkyPromise with id: ${this._id} caught an error while retrying, reverting...`, e);
+            }
 
             if (!this._config.revertOnFailure) {
                 throw new PromiseFailed(`PinkyPromise with id: ${this._id} failed and is not revertable.`);
@@ -97,12 +113,17 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     };
 
     private _retry = async function() {
+        /**
+         * Double safety in addition to the clause in _rescue
+         */
+        if (this._doNotRescue) return;
+        
         const { verbose, logger } = PinkyPromise._globalConfig;
 
         const needsToBeRetried = this._config.isRetryable && this._attemptsCount < this._config.maxRetryAttempts;
 
         if (this._attemptsCount >= this._config.maxRetryAttempts) {
-            verbose && (logger.log(`PinkyPromise with id: ${this._id} has reached max retry attempts, failed retry/s.`));
+            verbose && (logger.error(`PinkyPromise with id: ${this._id} has reached max retry attempts, failed retry/s.`));
             return;
         }
 
@@ -115,7 +136,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 const innerPromise = new Promise<TT>(executor);
                 this._innerPromiseLastResolvedValue = await innerPromise;
                 return this._innerPromiseLastResolvedValue;
-            } catch (e) {
+            } catch (_) {
                 return this._retry();
             }
         }
@@ -131,7 +152,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
 
         const isPartOfAGroup = !!this._groupContext;
         if (isPartOfAGroup && !isExecutedAsPartOfAGroupFlag) {
-            verbose && (logger.log(`PinkyPromise with id: ${this._id} needs to be reverted and is part of a group, skipping revert inside PinkyPromise and leaving it to happen as part of the group.`));
+            // PinkyPromise with id: ${this._id} needs to be reverted and is part of a group, skipping revert inside PinkyPromise and leaving it to happen as part of the group.
             return true;
         }
 
@@ -141,7 +162,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
              * But it's here to prevent hacks which cause problems
              */
             verbose && (logger.log(`PinkyPromise with id: ${this._id} is not being reverted because revert function is not defined, throwing error.`));
-            throw new ProgrammerError(`PinkyPromise with id: ${this._id} is not being reverted because revert function is not defined, throwing error.`);
+            throw new ProgrammerError(`PinkyPromise with id: ${this._id} is not being reverted because revert function is not defined.`);
         }
         
         verbose && (logger.log(`PinkyPromise with id: ${this._id} is being reverted...`));
@@ -161,7 +182,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         } catch (e) {
 
             if (e instanceof RevertError && this._revertAttemptsCounts < this._config.maxRevertAttempts) {
-                verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert again...`));
+                verbose && (logger.warn(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert again.`, e));
                 if (!isPartOfAGroup || isExecutedAsPartOfAGroupFlag) {
                     await new Promise((resolve) => setTimeout(resolve, this._config.revertRetryMsDelay));
                     return this._revert(isExecutedAsPartOfAGroupFlag);
@@ -188,9 +209,10 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 
             } catch (innerPromiseError) {
                 try {
+                    logger.log(`PinkyPromise with id: ${this._id} failed, beginning fail safe logic.`, innerPromiseError);
                     await this._rescue();
                 } catch (rescueError) {
-                    verbose && (logger.log(`PinkyPromise with id: ${this._id} fail safe logic failed, returning false.`));
+                    verbose && (logger.error(`PinkyPromise with id: ${this._id} fail safe logic failed, returning false.`, rescueError));
                     // reject(rescueError);
                     await onrejected(rescueError); 
                     return;
@@ -202,6 +224,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             try {
                 success = await this._success();
             } catch (successError) {
+                logger.warn(`PinkyPromise with id: ${this._id} success logic failed, returning false.`, successError);
                 await onrejected(successError);
                 return;
             }
@@ -210,7 +233,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 try {
                     await this._rescue();
                 } catch (rescueError) {
-                    verbose && (logger.log(`PinkyPromise with id: ${this._id} fail safe logic failed, returning false.`));
+                    verbose && (logger.warn(`PinkyPromise with id: ${this._id} fail safe logic failed, returning false.`, rescueError));
                     // reject(rescueError);
                     await onrejected(rescueError); 
                     return;
@@ -256,7 +279,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         // default values
         this._config.isRetryable = this._config?.isRetryable ?? true;
         this._config.maxRetryAttempts = this._config?.maxRetryAttempts ?? 5;
-        this._config.retryMsDelay = this._config?.retryMsDelay ?? process.env.NODE_ENV !== 'test' ? 1000 : 100;
+        this._config.retryMsDelay = this._config?.retryMsDelay ?? (process.env.NODE_ENV !== 'test' ? 1000 : 100);
         this._config.revertRetryMsDelay = this._config?.revertRetryMsDelay ?? this._config.retryMsDelay;
         this._config.revertOnFailure = this._config?.revertOnFailure ?? true;
         this._config.maxRevertAttempts = this._config?.maxRevertAttempts ?? 5;
@@ -273,6 +296,10 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             }));
     }
 
+    protected _setDoNotRescue() {
+        this._doNotRescue = true;
+    };
+
     static async all<T>(pinkyPromises: (PinkyPromise<T>)[], isSequential = false): Promise<T[] | void> {
         const id = uuidv4();
 
@@ -281,15 +308,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         verbose && (logger.log(`PinkyPromise.all with id: ${id} is being executed...`));
         try {
 
-            const pinkyPromiseAddToGroupContext = (pinkyPromise: PinkyPromise<T>) => {
-                pinkyPromise._groupContext = {
-                    id,
-                    pinkyPromises,
-                    isSequential,
-                };
-            };
-            const pinkyPromiseAddToGroupContextAll = (pinkyPromises: PinkyPromise<T>[]) => pinkyPromises.map(pinkyPromiseAddToGroupContext);
-            await Promise.all(pinkyPromiseAddToGroupContextAll(pinkyPromises));
+            const initiateGroupContextAll = (allPinkyPromises: PinkyPromise<T>[]) =>
+                allPinkyPromises.map(initiateGroupContext);
+            await Promise.all(initiateGroupContextAll(pinkyPromises));
 
             // TODO write tests retries also happen sequentially
             const pinkyPromiseResults = isSequential ? await awaitAllSequentially(pinkyPromises.slice().reverse()) : await Promise.all(pinkyPromises);
@@ -317,6 +338,11 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             }
 
             try {
+                const setAllPinkyPromisesAsRevertInitiated = (allPinkyPromises: PinkyPromise<T>[]) => allPinkyPromises.map(
+                    pinkyPromise => pinkyPromise._setDoNotRescue()
+                );
+                await Promise.all(setAllPinkyPromisesAsRevertInitiated(pinkyPromises));
+                
                 const revertResults = await revertAll();
                 if (revertResults.some(revertResult => !revertResult)) {
                     throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id: ${id} failed to revert all!`);
@@ -331,6 +357,24 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
 
         }
 
+        function addToGroupContext(pinkyPromise: PinkyPromise<T>, add: Partial<PinkyPromiseGroupContext> = {}) {
+            const initialGroupContext = {
+                id,
+                pinkyPromises,
+                isSequential,
+            };
+
+            pinkyPromise._groupContext = pinkyPromise._groupContext ?? initialGroupContext;
+
+            pinkyPromise._groupContext = {
+                ...pinkyPromise._groupContext,
+                ...add,
+            };
+        };
+
+        function initiateGroupContext(pinkyPromise: PinkyPromise<T>) {
+            return addToGroupContext(pinkyPromise);
+        };
 
         function revertAll() {
             try {
