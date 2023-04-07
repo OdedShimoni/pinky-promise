@@ -162,7 +162,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             if (e instanceof RevertError && this._revertAttemptsCounts < this._config.maxRevertAttempts) {
                 verbose && (logger.log(`PinkyPromise with id: ${this._id} caught an error while reverting, retrying to revert again...`));
                 if (!isPartOfAGroup || isExecutedAsPartOfAGroupFlag) {
-                    return await this._revert(isExecutedAsPartOfAGroupFlag);
+                    return this._revert(isExecutedAsPartOfAGroupFlag);
                 }
             }
             
@@ -239,6 +239,8 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         if (config?.revertOnFailure === false && config?.isRetryable === false) {
             throw new ProgrammerError(`${this.constructor.name} must either be retryable or revert on failure. If you don't need both use a regular promise instead.`);
         }
+
+        
 
         this._id = uuidv4();
 
