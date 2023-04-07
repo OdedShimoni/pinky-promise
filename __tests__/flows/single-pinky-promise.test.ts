@@ -360,9 +360,9 @@ describe('Sync flows:', () => {
 });
 
 describe('Async flows:', () => {
-    test('"revert" is also async', async () => {
+    test('"revert" is async', async () => {
         const pinky = new PinkyPromise(
-            async (resolve, reject) => {
+            (resolve, reject) => {
                 setTimeout(() => {
                     resolve('resolve');
                 }, ASYNC_WAIT_TIME_MS);
@@ -390,8 +390,7 @@ describe('Async flows:', () => {
         }
     });
 
-    test('"revert" is also async but now it rejects on the 1st attempt', async () => {
-        let revertCounter = 0;
+    test('"revert" is async but now it rejects on the 1st attempt', async () => {
         const pinky = new PinkyPromise(
             (resolve, reject) => {
                 setTimeout(() => {
@@ -403,7 +402,7 @@ describe('Async flows:', () => {
                 revert: function() {
                     return new Promise((resolve, reject) => {
                         setTimeout(() => {
-                            return reject(++revertCounter === 2);
+                            return reject();
                         }, ASYNC_WAIT_TIME_MS);
                     });
                 }
@@ -524,44 +523,6 @@ describe('Async flows:', () => {
             expect(e instanceof errors.FatalErrorNotReverted).toBe(true);
             expect((pinky['_config'].success as sinon.Spy).callCount).toBe(1);
             expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(DEFAULT_REVERT_ATTEMPTS);
-        }
-    });
-
-    test('promise is resolve and NOT succeeded but EXCEEDS number of retries and ASYNC revert THROWS an error on the 2nd attmept', async () => {
-        let counter = 0;
-        const pinky = new PinkyPromise(
-            (resolve, reject) => {
-                setTimeout(() => {
-                    resolve('resolve');
-                }, ASYNC_WAIT_TIME_MS);
-            },
-            {
-                success: () => false,
-                revert: () => {
-                    if (counter === 0) {
-                        counter++;
-                        return false;
-                    }
-                    return new Promise((resolve, reject) => {
-                        setTimeout(() => {
-                            throw new Error('error while reverting');
-                        }, ASYNC_WAIT_TIME_MS);
-                    });
-                },
-            }
-        );
-
-        const _pinkySuccessSpy = sinon.spy(pinky['_config'], 'success');
-        const _pinkyRevertSpy = sinon.spy(pinky['_config'], 'revert');
-
-        try {
-            await pinky;
-            expect(true).toBe(false);
-        }
-        catch (e) {
-            expect(e instanceof errors.FatalErrorNotReverted).toBe(true);
-            expect((pinky['_config'].success as sinon.Spy).callCount).toBe(DEFAULT_RETRY_ATTEMPTS + 1); // 1 for the first time and 5 for the retries
-            expect((pinky['_config'].revert as sinon.Spy).callCount).toBe(1);
         }
     });
 

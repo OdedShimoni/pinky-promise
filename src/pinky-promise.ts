@@ -239,8 +239,12 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         if (config?.revertOnFailure === false && config?.isRetryable === false) {
             throw new ProgrammerError(`${this.constructor.name} must either be retryable or revert on failure. If you don't need both use a regular promise instead.`);
         }
-
-        
+        if(executor?.constructor.name === 'AsyncFunction') {
+            throw new ProgrammerError(`${this.constructor.name} executor method must be a synchronous function.`);
+        }
+        if(config?.success?.constructor.name === 'AsyncFunction') {
+            throw new ProgrammerError(`${this.constructor.name} success method must be a synchronous function.`);
+        }
 
         this._id = uuidv4();
 

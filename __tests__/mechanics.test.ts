@@ -3,6 +3,39 @@ import { errors, PinkyPromise } from "../src";
 PinkyPromise.config();
 
 describe('Pinky Promise mechanics tests', () => {
+    it('should throw "ProgrammerError" if programmer tries to use "async" executor', async () => {
+        try {
+            const pinky = new PinkyPromise(async (resolve, reject) => {
+                resolve('resolve');
+            },
+            {
+                success: () => true,
+                revert: () => true,
+            });
+
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e instanceof errors.ProgrammerError).toBe(true);
+        }
+    });
+
+    it('should throw "ProgrammerError" if programmer tries to use "async" success method', async () => {
+        try {
+            const pinky = new PinkyPromise(
+                (resolve, reject) => {
+                    resolve('resolve');
+                },
+                {
+                    success: (async () => true) as any, // Test should be here because some clients use plain JavaScript
+                    revert: () => true,
+                }
+            );
+
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e instanceof errors.ProgrammerError).toBe(true);
+        }
+    });
     it('should throw "FatalErrorNotReverted" if revert is attempted and the function returns explicit "false" in all its attempts', async () => {
         const pinky = new PinkyPromise(
             (resolve, reject) => {
