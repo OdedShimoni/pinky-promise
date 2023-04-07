@@ -256,7 +256,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         // default values
         this._config.isRetryable = this._config?.isRetryable ?? true;
         this._config.maxRetryAttempts = this._config?.maxRetryAttempts ?? 5;
-        this._config.retryMsDelay = this._config?.retryMsDelay ?? 100;
+        this._config.retryMsDelay = this._config?.retryMsDelay ?? process.env.NODE_ENV !== 'test' ? 1000 : 100;
         this._config.revertRetryMsDelay = this._config?.revertRetryMsDelay ?? this._config.retryMsDelay;
         this._config.revertOnFailure = this._config?.revertOnFailure ?? true;
         this._config.maxRevertAttempts = this._config?.maxRevertAttempts ?? 5;
