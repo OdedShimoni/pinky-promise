@@ -33,9 +33,10 @@ beforeAll(done => {
                 throw err;
             }
             connection.query("CREATE TABLE IF NOT EXISTS test.pinky_promise_tests ("
-                    + "uuid VARCHAR(36) NOT NULL,"
+                    + "id INT NOT NULL AUTO_INCREMENT,"
+                    + "uuid VARCHAR(36) NOT NULL UNIQUE,"
                     + "col VARCHAR(255) NOT NULL,"
-                    + "PRIMARY KEY (uuid)"
+                    + "PRIMARY KEY (id)"
                 + ")",
                 (err, results) => {
                     if (err) {
@@ -71,10 +72,12 @@ beforeAll(done => {
 });
 
 afterAll(() => {
-    mongoClient.close();
-    mysqlConnectionPool.end();
-    redisClient.quit();
-    teardownTestEnv();
+    setTimeout(() => {
+        mongoClient.close();
+        mysqlConnectionPool.end();
+        redisClient.quit();
+        teardownTestEnv();
+    }, 5000); // bad practice, to allow grace shutdown
 });
 
 describe('Full integration flows testing real life services', () => {
@@ -105,7 +108,7 @@ describe('Full integration flows testing real life services', () => {
             if (++updateToMysqlCounter < 4) {
                 return reject();
             }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
+            const query = `INSERT IGNORE INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
             mysqlConnectionPool.query(query, (err, res) => {
                 if (err) {
                     return reject(err);
@@ -146,16 +149,16 @@ describe('Full integration flows testing real life services', () => {
 
         try {
             await PinkyPromise.all([updateUserInfo, updateMySql, redisAction]);
-            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                if (err) {
-                    expect(true).toBe(false);
-                }
-                expect(res[0].col).toBe('test_value');
-            });
             const insertedRowToMongo = await db.collection('tests').findOne({ id: uuid4 });
             expect(insertedRowToMongo).not.toBe(null);
             expect(insertedRowToMongo?.testing).toBe('pinky-promise');
             const redisValue = await redisClient.get('test');
+            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
+                if (err) {
+                    expect(true).toBe(false);
+                }
+                expect(res?.[0].col).toBe('test_value');
+            });
             expect(redisValue).toBe('test_value');
         } catch (e) {
             expect(true).toBe(false);
@@ -189,7 +192,7 @@ describe('Full integration flows testing real life services', () => {
             if (++updateToMysqlCounter < 4) {
                 return reject();
             }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
+            const query = `INSERT IGNORE INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
             mysqlConnectionPool.query(query, (err, res) => {
                 if (err) {
                     return reject(err);
@@ -233,13 +236,13 @@ describe('Full integration flows testing real life services', () => {
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
-            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                expect(res[0]?.col).toBe(undefined);
-            });
             const insertedRowToMongo = await db.collection('tests').findOne({ id: uuid4 });
             expect(insertedRowToMongo).toBe(null);
             expect(insertedRowToMongo?.testing).toBe(undefined);
             const redisValue = await redisClient.get('test');
+            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
+                expect(res?.[0]?.col).toBe(undefined);
+            });
             expect(redisValue).toBe(null);
         }
     });
@@ -271,7 +274,7 @@ describe('Full integration flows testing real life services', () => {
             if (++updateToMysqlCounter < 4) {
                 return reject();
             }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
+            const query = `INSERT IGNORE INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
             mysqlConnectionPool.query(query, (err, res) => {
                 if (err) {
                     return reject(err);
@@ -315,13 +318,13 @@ describe('Full integration flows testing real life services', () => {
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
-            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                expect(res[0]?.col).toBe(undefined);
-            });
             const insertedRowToMongo = await db.collection('tests').findOne({ id: uuid4 });
             expect(insertedRowToMongo).toBe(null);
             expect(insertedRowToMongo?.testing).toBe(undefined);
             const redisValue = await redisClient.get('test');
+            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
+                expect(res?.[0]?.col).toBe(undefined);
+            });
             expect(redisValue).toBe(null);
         }
     });
@@ -353,7 +356,7 @@ describe('Full integration flows testing real life services', () => {
             if (++updateToMysqlCounter < 4) {
                 return reject();
             }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
+            const query = `INSERT IGNORE INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
             mysqlConnectionPool.query(query, (err, res) => {
                 if (err) {
                     return reject(err);
@@ -397,13 +400,13 @@ describe('Full integration flows testing real life services', () => {
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
-            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                expect(res[0]?.col).toBe(undefined);
-            });
             const insertedRowToMongo = await db.collection('tests').findOne({ id: uuid4 });
             expect(insertedRowToMongo).toBe(null);
             expect(insertedRowToMongo?.testing).toBe(undefined);
             const redisValue = await redisClient.get('test');
+            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
+                expect(res?.[0]?.col).toBe(undefined);
+            });
             expect(redisValue).toBe(null);
         }
     });
@@ -435,7 +438,7 @@ describe('Full integration flows testing real life services', () => {
             if (++updateToMysqlCounter < 4) {
                 return reject();
             }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
+            const query = `INSERT IGNORE INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
             mysqlConnectionPool.query(query, (err, res) => {
                 if (err) {
                     return reject(err);
@@ -479,13 +482,13 @@ describe('Full integration flows testing real life services', () => {
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
-            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                expect(res[0]?.col).toBe(undefined);
-            });
             const insertedRowToMongo = await db.collection('tests').findOne({ id: uuid4 });
             expect(insertedRowToMongo).toBe(null);
             expect(insertedRowToMongo?.testing).toBe(undefined);
             const redisValue = await redisClient.get('test');
+            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
+                expect(res?.[0]?.col).toBe(undefined);
+            });
             expect(redisValue).toBe(null);
         }
     });
@@ -517,7 +520,7 @@ describe('Full integration flows testing real life services', () => {
             if (++updateToMysqlCounter < 4) {
                 return reject();
             }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
+            const query = `INSERT IGNORE INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
             mysqlConnectionPool.query(query, (err, res) => {
                 if (err) {
                     return reject(err);
@@ -561,13 +564,13 @@ describe('Full integration flows testing real life services', () => {
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
-            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                expect(res[0]?.col).toBe(undefined);
-            });
             const insertedRowToMongo = await db.collection('tests').findOne({ id: uuid4 });
             expect(insertedRowToMongo).toBe(null);
             expect(insertedRowToMongo?.testing).toBe(undefined);
             const redisValue = await redisClient.get('test');
+            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
+                expect(res?.[0]?.col).toBe(undefined);
+            });
             expect(redisValue).toBe(null);
         }
     });
@@ -599,7 +602,7 @@ describe('Full integration flows testing real life services', () => {
             if (++updateToMysqlCounter < 4) {
                 return reject();
             }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
+            const query = `INSERT IGNORE INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
             mysqlConnectionPool.query(query, (err, res) => {
                 if (err) {
                     return reject(err);
@@ -643,13 +646,13 @@ describe('Full integration flows testing real life services', () => {
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
-            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                expect(res[0]?.col).toBe(undefined);
-            });
             const insertedRowToMongo = await db.collection('tests').findOne({ id: uuid4 });
             expect(insertedRowToMongo).toBe(null);
             expect(insertedRowToMongo?.testing).toBe(undefined);
             const redisValue = await redisClient.get('test');
+            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
+                expect(res?.[0]?.col).toBe(undefined);
+            });
             expect(redisValue).toBe(null);
         }
     });
@@ -681,7 +684,7 @@ describe('Full integration flows testing real life services', () => {
             if (++updateToMysqlCounter < 4) {
                 return reject();
             }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
+            const query = `INSERT IGNORE INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
             mysqlConnectionPool.query(query, (err, res) => {
                 if (err) {
                     return reject(err);
@@ -727,7 +730,7 @@ describe('Full integration flows testing real life services', () => {
             setTimeout(() => {
                 expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
                 mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                    expect(res[0]?.col).toBe(undefined);
+                    expect(res?.[0]?.col).toBe(undefined);
                 });
                 db.collection('tests').findOne({ id: uuid4 })
                     .then(insertedRowToMongo => {
