@@ -1,15 +1,15 @@
 # Pinky Promise
 
 <div style="text-align: center">
-!\[my badge\](https://badgen.net/badge/npm/1.0.0-beta/blue)
+![my badge](https://badgen.net/badge/npm/1.0.0-beta/blue)
 &nbsp;
-!\[my badge\](https://badgen.net/badge/license/Apache%20License%202.0/green)
+![my badge](https://badgen.net/badge/license/Apache%20License%202.0/green)
 &nbsp;
-!\[my badge\](https://badgen.net/badge/install%20size/4.4kb/blue)
+![my badge](https://badgen.net/badge/install%20size/4.4kb/blue)
 &nbsp;
-!\[my badge\](https://badgen.net/badge/coverage/full/green)
+![my badge](https://badgen.net/badge/coverage/full/green)
 &nbsp;
-!\[my badge\](https://badgen.net/badge/PRs/welcome/green)
+![my badge](https://badgen.net/badge/PRs/welcome/green)
 </div>
 
 A promise you can count on - fail safe and transparent.
