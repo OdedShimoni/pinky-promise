@@ -18,7 +18,6 @@ Pinky Promise is great for dealing with complex flows where you want to ensure t
 
 It has the same interface as 'Promise', along with minimal configuration, and can be used as a drop-in replacement.
 
-### TODO SANITY FOR ALL THESE EXAMPLES
 ```javascript
  // 15 lines of code which will retry each failed update, and if either's retries fail, revert both
 

@@ -301,7 +301,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         this._doNotRescue = true;
     };
 
-    static async all<T>(pinkyPromises: (PinkyPromise<T>)[], isSequential = false): Promise<T[] | void> {
+    static async all(pinkyPromises: (PinkyPromise<any>)[], isSequential = false): Promise<any[] | void> {
         const id = uuidv4();
 
         const { verbose, logger } = PinkyPromise._globalConfig;
@@ -309,7 +309,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         verbose && (logger.log(`PinkyPromise.all with id: ${id} is being executed...`));
         try {
 
-            const initiateGroupContextAll = (allPinkyPromises: PinkyPromise<T>[]) =>
+            const initiateGroupContextAll = (allPinkyPromises: PinkyPromise<any>[]) =>
                 allPinkyPromises.map(initiateGroupContext);
             await Promise.all(initiateGroupContextAll(pinkyPromises));
 
@@ -339,7 +339,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             }
 
             try {
-                const setAllPinkyPromisesAsRevertInitiated = (allPinkyPromises: PinkyPromise<T>[]) => allPinkyPromises.map(
+                const setAllPinkyPromisesAsRevertInitiated = (allPinkyPromises: PinkyPromise<any>[]) => allPinkyPromises.map(
                     pinkyPromise => pinkyPromise._setDoNotRescue()
                 );
                 await Promise.all(setAllPinkyPromisesAsRevertInitiated(pinkyPromises));
@@ -358,7 +358,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
 
         }
 
-        function addToGroupContext(pinkyPromise: PinkyPromise<T>, add: Partial<PinkyPromiseGroupContext> = {}) {
+        function addToGroupContext(pinkyPromise: PinkyPromise<any>, add: Partial<PinkyPromiseGroupContext> = {}) {
             const initialGroupContext = {
                 id,
                 pinkyPromises,
@@ -373,7 +373,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             };
         };
 
-        function initiateGroupContext(pinkyPromise: PinkyPromise<T>) {
+        function initiateGroupContext(pinkyPromise: PinkyPromise<any>) {
             return addToGroupContext(pinkyPromise);
         };
 
@@ -402,7 +402,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         }
     }
 
-    static async allSeq<T>(pinkyPromises: (PinkyPromise<T>)[]): Promise<T[] | void> {
+    static async allSeq(pinkyPromises: (PinkyPromise<any>)[]): Promise<any[] | void> {
         return await PinkyPromise.all(pinkyPromises, true);
     }
 }
