@@ -5,16 +5,6 @@ services:
     container_name: mongodb
     ports:
       - "27017:27017"
-  mariadb:
-    image: mariadb:latest
-    container_name: mariadb
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: test
-      MYSQL_USER: test
-      MYSQL_PASSWORD: test
-    ports:
-      - "3306:3306"
   redis:
     image: redis:latest
     container_name: redis

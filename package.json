@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "jest",
+    "test": "npm run build && jest",
     "build:dev": "tsc -w",
     "prepare": "npm run build",
     "prepublishOnly": "npm test"
