@@ -73,6 +73,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             lastResolvedValueAsString = 'Circular structure / couldn\'t stringify.';
         }
 
+        // Consider adding this log also after each retry:
         verbose && (logger.log(`PinkyPromise with id: ${this._id} has failed, it resolved with (${lastResolvedValueAsString}) and is beginning fail safe logic...`));
         try {
             if (!this._config.isRetryable) {
@@ -220,7 +221,6 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 }
             }
 
-            // TODO write tests to this edge case
             let success;
             try {
                 success = await this._success();

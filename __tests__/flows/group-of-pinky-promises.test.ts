@@ -136,7 +136,7 @@ describe('Group of pinky promises flows:', () => {
 
     });
 
-    test('all promises are resolved and but even if ONE FAILS then all revert', async () => {
+    test('all promises are resolved but even if ONE FAILS then all revert', async () => {
         let counter = 1;
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
@@ -459,6 +459,8 @@ describe('Group of pinky promises flows:', () => {
             expect(e instanceof errors.FatalErrorNotReverted).toEqual(true);
         }
     });
+
+    test.todo("Async flows where pinky promise resolves a promise");
     
     describe('The same but sequentially - tests flows and not order of execution', () => {
         test('all promises are resolved and succeeded', async () => {
