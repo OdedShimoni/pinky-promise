@@ -3,7 +3,7 @@
 <div style="text-align: center">
 !\[my badge\](https://badgen.net/badge/npm/1.0.0-beta/blue)
 &nbsp;
-!\[my badge\](https://badgen.net/badge/license/MIT/green)
+!\[my badge\](https://badgen.net/badge/license/Apache%20License%202.0/green)
 &nbsp;
 !\[my badge\](https://badgen.net/badge/install%20size/4.4kb/blue)
 &nbsp;
@@ -494,5 +494,5 @@ Contributions are always welcome!
 
 ## License
 
-[MIT](https://choosealicense.com/licenses/mit/)
+[Apache License 2.0](https://choosealicense.com/licenses/apache-2.0/)
 
