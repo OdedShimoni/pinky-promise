@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "Oded Shimoni",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "files": [
     "dist"
   ],
