@@ -4,7 +4,7 @@
 
 ![npm](https://badgen.net/badge/npm/3-8-6-beta/blue)
 &nbsp;
-![License](https://badgen.net/badge/license/Apache-License-2.0/green)
+![License](https://badgen.net/badge/license/Apache-License-2.0/blue)
 &nbsp;
 ![Size](https://badgen.net/badge/install%20size/4.4kb/blue)
 &nbsp;
