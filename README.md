@@ -2,6 +2,8 @@
 
 <div style="text-align: center">
 
+![Maintainer](https://badgen.net/badge/maintainer/Oded%20Shimoni/orange)
+&nbsp;
 ![npm](https://badgen.net/badge/npm/3-8-6-beta/blue)
 &nbsp;
 ![License](https://badgen.net/badge/license/Apache-License-2.0/blue)
