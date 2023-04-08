@@ -1,6 +1,7 @@
 # Pinky Promise
 
 <div style="text-align: center">
+
 ![npm](https://badgen.net/badge/npm/3-8-6-beta/blue)
 &nbsp;
 ![License](https://badgen.net/badge/license/Apache-License-2.0/green)
