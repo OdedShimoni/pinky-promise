@@ -54,7 +54,7 @@ afterAll(() => {
     teardownTestEnv();
 });
 
-describe('Full integration flows testing real life services', () => {
+describe('Full integration flows testing real world services', () => {
     test('Successful insertion to MongoDb + Redis should result with a new record in the DB.', async () => {
         const db = mongoClient.db("tests");
         const uuid4 = uuidv4();
