@@ -738,7 +738,7 @@ describe('Full integration flows testing real life services', () => {
                     .then(redisValue => {
                         expect(redisValue).toBe(null);
                     });
-            }, 3000);
+            }, 5000);
         }
     });
 });
