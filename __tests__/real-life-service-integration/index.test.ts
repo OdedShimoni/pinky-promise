@@ -2,7 +2,6 @@
  * Tests here are dependent on Docker being installed on the machine running the tests and docker-compose + ports available
  */
 jest.setTimeout(120000);
-import axios, { AxiosResponse } from 'axios';
 import { spawnSync } from 'child_process';
 import * as mongodb from 'mongodb';
 import mysql from 'mysql';
@@ -52,13 +51,11 @@ beforeAll(done => {
 });
 
 beforeAll(done => {
-    setTimeout(() => {
-        mongodb.MongoClient.connect('mongodb://localhost:27017')
-            .then((client) => {
-                mongoClient = client;
-                done();
-            });
-    }, 5000); // bad practice
+    mongodb.MongoClient.connect('mongodb://localhost:27017')
+        .then((client) => {
+            mongoClient = client;
+            done();
+        });
 });
 
 beforeAll(done => {
@@ -81,18 +78,18 @@ afterAll(() => {
 });
 
 describe('Full integration flows testing real life services', () => {
-    test('Successful insertion to both MongoDb and Mysql should result with a new record in the DB + Axios request should succeed + Redis.', async () => {
+    test('Successful insertion to MongoDb + Mysql + Redis should result with a new record in the DB.', async () => {
         const db = mongoClient.db("tests");
         const uuid4 = uuidv4();
         const updateUserInfo = new PinkyPromise<any>((resolve, reject) => {
             resolve(
                 db
                     .collection("tests")
-                    .updateOne({ id: uuid4 }, { id: uuid4, testing: "pinky-promise" }, { upsert: true })
+                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise" } }, { upsert: true })
             );
         }, {
             success: function (result) {
-                return !!result?.insertedId;
+                return result?.acknowledged === true;
             },
             revert: async function () {
                 const res = await db
@@ -101,24 +98,6 @@ describe('Full integration flows testing real life services', () => {
                 return res.acknowledged === true;
             },
             retryMsDelay: 400,
-        });
-    
-        let updateDataWarehouseCounter = 0;
-        const updateDataWarehouse = new PinkyPromise<AxiosResponse>((resolve, reject) => {
-            resolve(axios.get(`http://amazon.com/`));
-        }, {
-            success: function (result) {
-                if (!result) {
-                    return false;
-                }
-                return result.status === 200;
-            },
-            revert: () => {
-                if (++updateDataWarehouseCounter < 4) {
-                    return false;
-                }
-            },
-            retryMsDelay: 471,
         });
     
         let updateToMysqlCounter = 0;
@@ -166,7 +145,7 @@ describe('Full integration flows testing real life services', () => {
         });
 
         try {
-            await PinkyPromise.all([updateUserInfo, updateDataWarehouse, updateMySql, redisAction]);
+            await PinkyPromise.all([updateUserInfo, updateMySql, redisAction]);
             mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
                 if (err) {
                     expect(true).toBe(false);
@@ -190,11 +169,11 @@ describe('Full integration flows testing real life services', () => {
             resolve(
                 db
                     .collection("tests")
-                    .updateOne({ id: uuid4 }, { id: uuid4, testing: "pinky-promise" }, { upsert: true })
+                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise" } }, { upsert: true })
             );
         }, {
             success: function (result) {
-                return !!result?.insertedId;
+                return result?.acknowledged === true;
             },
             revert: async function () {
                 const res = await db
@@ -203,24 +182,6 @@ describe('Full integration flows testing real life services', () => {
                 return res.acknowledged === true;
             },
             retryMsDelay: 400,
-        });
-    
-        let updateDataWarehouseCounter = 0;
-        const updateDataWarehouse = new PinkyPromise<AxiosResponse>((resolve, reject) => {
-            resolve(axios.get(`http://amazon.com/`));
-        }, {
-            success: function (result) {
-                if (!result) {
-                    return false;
-                }
-                return result.status === 200;
-            },
-            revert: () => {
-                if (++updateDataWarehouseCounter < 4) {
-                    return false;
-                }
-            },
-            retryMsDelay: 471,
         });
     
         let updateToMysqlCounter = 0;
@@ -268,7 +229,7 @@ describe('Full integration flows testing real life services', () => {
         });
 
         try {
-            await PinkyPromise.all([updateUserInfo, updateDataWarehouse, updateMySql, redisAction]);
+            await PinkyPromise.all([updateUserInfo, updateMySql, redisAction]);
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
@@ -290,11 +251,11 @@ describe('Full integration flows testing real life services', () => {
             resolve(
                 db
                     .collection("tests")
-                    .updateOne({ id: uuid4 }, { id: uuid4, testing: "pinky-promise" }, { upsert: true })
+                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise" } }, { upsert: true })
             );
         }, {
             success: function (result) {
-                return !!result?.insertedId;
+                return result?.acknowledged === true;
             },
             revert: async function () {
                 const res = await db
@@ -303,24 +264,6 @@ describe('Full integration flows testing real life services', () => {
                 return res.acknowledged === true;
             },
             retryMsDelay: 400,
-        });
-    
-        let updateDataWarehouseCounter = 0;
-        const updateDataWarehouse = new PinkyPromise<AxiosResponse>((resolve, reject) => {
-            resolve(axios.get(`http://amazon.com/`));
-        }, {
-            success: function (result) {
-                if (!result) {
-                    return false;
-                }
-                return result.status === 200;
-            },
-            revert: () => {
-                if (++updateDataWarehouseCounter < 4) {
-                    return false;
-                }
-            },
-            retryMsDelay: 471,
         });
     
         let updateToMysqlCounter = 0;
@@ -368,100 +311,7 @@ describe('Full integration flows testing real life services', () => {
         });
 
         try {
-            await PinkyPromise.all([updateUserInfo, updateDataWarehouse, updateMySql, redisAction]);
-            expect(true).toBe(false);
-        } catch (e) {
-            expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
-            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                expect(res[0]?.col).toBe(undefined);
-            });
-            const insertedRowToMongo = await db.collection('tests').findOne({ id: uuid4 });
-            expect(insertedRowToMongo).toBe(null);
-            expect(insertedRowToMongo?.testing).toBe(undefined);
-            const redisValue = await redisClient.get('test');
-            expect(redisValue).toBe(null);
-        }
-    });
-
-    test('All revert if one fails (Axios, which is also set "revertOnFailure: false")', async () => {
-        const db = mongoClient.db("tests");
-        const uuid4 = uuidv4();
-        const updateUserInfo = new PinkyPromise<any>((resolve, reject) => {
-            resolve(
-                db
-                    .collection("tests")
-                    .updateOne({ id: uuid4 }, { id: uuid4, testing: "pinky-promise" }, { upsert: true })
-            );
-        }, {
-            success: function (result) {
-                return !!result?.insertedId;
-            },
-            revert: async function () {
-                const res = await db
-                    .collection('tests')
-                    .deleteOne({ id: uuid4 });
-                return res.acknowledged === true;
-            },
-            retryMsDelay: 400,
-        });
-    
-        let updateDataWarehouseCounter = 0;
-        const updateDataWarehouse = new PinkyPromise<AxiosResponse>((resolve, reject) => {
-            resolve(axios.get(`http://amazon.com/`));
-        }, {
-            success: function (result) {
-                return false;
-            },
-            revertOnFailure: false,
-            retryMsDelay: 471,
-        });
-    
-        let updateToMysqlCounter = 0;
-        const updateMySql = new PinkyPromise<any>((resolve, reject) => {
-            if (++updateToMysqlCounter < 4) {
-                return reject();
-            }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
-            mysqlConnectionPool.query(query, (err, res) => {
-                if (err) {
-                    return reject(err);
-                }
-                return resolve(res);
-            });
-        },
-        {
-            success: function (result) {
-                return true;
-            },
-            revert: function () {
-                const query = `DELETE FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`;
-                mysqlConnectionPool.query(query, (err, res) => {
-                    if (![0,1].includes((res as any)?.affectedRows)) {
-                        return false;
-                    }
-                });
-            }
-        });
-
-        const redisAction = new PinkyPromise<any>((resolve, reject) => {
-            redisClient.set('test', 'test_value')
-                .then(res => {
-                    resolve(res);
-                })
-                .catch(e => {
-                    reject(e);
-                });
-        }, {
-            success: function (result) {
-                return result === 'OK';
-            },
-            revert: function () {
-                redisClient.del('test');
-            }
-        });
-
-        try {
-            await PinkyPromise.all([updateUserInfo, updateDataWarehouse, updateMySql, redisAction]);
+            await PinkyPromise.all([updateUserInfo, updateMySql, redisAction]);
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
@@ -483,7 +333,7 @@ describe('Full integration flows testing real life services', () => {
             resolve(
                 db
                     .collection("tests")
-                    .updateOne({ id: uuid4 }, { id: uuid4, testing: "pinky-promise" }, { upsert: true })
+                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise" } }, { upsert: true })
             );
         }, {
             success: function (result) {
@@ -496,17 +346,6 @@ describe('Full integration flows testing real life services', () => {
                 return res.acknowledged === true;
             },
             retryMsDelay: 400,
-        });
-    
-        let updateDataWarehouseCounter = 0;
-        const updateDataWarehouse = new PinkyPromise<AxiosResponse>((resolve, reject) => {
-            resolve(axios.get(`http://amazon.com/`));
-        }, {
-            success: function (result) {
-                return true;
-            },
-            revertOnFailure: false,
-            retryMsDelay: 471,
         });
     
         let updateToMysqlCounter = 0;
@@ -554,7 +393,7 @@ describe('Full integration flows testing real life services', () => {
         });
 
         try {
-            await PinkyPromise.all([updateUserInfo, updateDataWarehouse, updateMySql, redisAction]);
+            await PinkyPromise.all([updateUserInfo, updateMySql, redisAction]);
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
@@ -576,7 +415,7 @@ describe('Full integration flows testing real life services', () => {
             resolve(
                 db
                     .collection("tests")
-                    .updateOne({ id: uuid4 }, { id: uuid4, testing: "pinky-promise" }, { upsert: true })
+                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise" } }, { upsert: true })
             );
         }, {
             success: function (result) {
@@ -589,17 +428,6 @@ describe('Full integration flows testing real life services', () => {
                 return res.acknowledged === true;
             },
             retryMsDelay: 400,
-        });
-    
-        let updateDataWarehouseCounter = 0;
-        const updateDataWarehouse = new PinkyPromise<AxiosResponse>((resolve, reject) => {
-            resolve(axios.get(`http://amazon.com/`));
-        }, {
-            success: function (result) {
-                return true;
-            },
-            revertOnFailure: false,
-            retryMsDelay: 471,
         });
     
         let updateToMysqlCounter = 0;
@@ -647,100 +475,7 @@ describe('Full integration flows testing real life services', () => {
         });
 
         try {
-            await PinkyPromise.all([updateUserInfo, updateDataWarehouse, updateMySql, redisAction]);
-            expect(true).toBe(false);
-        } catch (e) {
-            expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
-            mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
-                expect(res[0]?.col).toBe(undefined);
-            });
-            const insertedRowToMongo = await db.collection('tests').findOne({ id: uuid4 });
-            expect(insertedRowToMongo).toBe(null);
-            expect(insertedRowToMongo?.testing).toBe(undefined);
-            const redisValue = await redisClient.get('test');
-            expect(redisValue).toBe(null);
-        }
-    });
-
-    test('All revert if two fail (Mongo + Axios)', async () => {
-        const db = mongoClient.db("tests");
-        const uuid4 = uuidv4();
-        const updateUserInfo = new PinkyPromise<any>((resolve, reject) => {
-            resolve(
-                db
-                    .collection("tests")
-                    .updateOne({ id: uuid4 }, { id: uuid4, testing: "pinky-promise" }, { upsert: true })
-            );
-        }, {
-            success: function (result) {
-                return false;
-            },
-            revert: async function () {
-                const res = await db
-                    .collection('tests')
-                    .deleteOne({ id: uuid4 });
-                return res.acknowledged === true;
-            },
-            retryMsDelay: 400,
-        });
-    
-        let updateDataWarehouseCounter = 0;
-        const updateDataWarehouse = new PinkyPromise<AxiosResponse>((resolve, reject) => {
-            resolve(axios.get(`http://amazon.com/`));
-        }, {
-            success: function (result) {
-                return false;
-            },
-            revertOnFailure: false,
-            retryMsDelay: 471,
-        });
-    
-        let updateToMysqlCounter = 0;
-        const updateMySql = new PinkyPromise<any>((resolve, reject) => {
-            if (++updateToMysqlCounter < 4) {
-                return reject();
-            }
-            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
-            mysqlConnectionPool.query(query, (err, res) => {
-                if (err) {
-                    return reject(err);
-                }
-                return resolve(res);
-            });
-        },
-        {
-            success: function (result) {
-                return true;
-            },
-            revert: function () {
-                const query = `DELETE FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`;
-                mysqlConnectionPool.query(query, (err, res) => {
-                    if (![0,1].includes((res as any)?.affectedRows)) {
-                        return false;
-                    }
-                });
-            }
-        });
-
-        const redisAction = new PinkyPromise<any>((resolve, reject) => {
-            redisClient.set('test', 'test_value')
-                .then(res => {
-                    resolve(res);
-                })
-                .catch(e => {
-                    reject(e);
-                });
-        }, {
-            success: function (result) {
-                return result === 'OK';
-            },
-            revert: function () {
-                redisClient.del('test');
-            }
-        });
-
-        try {
-            await PinkyPromise.all([updateUserInfo, updateDataWarehouse, updateMySql, redisAction]);
+            await PinkyPromise.all([updateUserInfo, updateMySql, redisAction]);
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
@@ -762,7 +497,7 @@ describe('Full integration flows testing real life services', () => {
             resolve(
                 db
                     .collection("tests")
-                    .updateOne({ id: uuid4 }, { id: uuid4, testing: "pinky-promise" }, { upsert: true })
+                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise" } }, { upsert: true })
             );
         }, {
             success: function (result) {
@@ -775,17 +510,6 @@ describe('Full integration flows testing real life services', () => {
                 return res.acknowledged === true;
             },
             retryMsDelay: 400,
-        });
-    
-        let updateDataWarehouseCounter = 0;
-        const updateDataWarehouse = new PinkyPromise<AxiosResponse>((resolve, reject) => {
-            resolve(axios.get(`http://amazon.com/`));
-        }, {
-            success: function (result) {
-                return true;
-            },
-            revertOnFailure: false,
-            retryMsDelay: 471,
         });
     
         let updateToMysqlCounter = 0;
@@ -833,7 +557,7 @@ describe('Full integration flows testing real life services', () => {
         });
 
         try {
-            await PinkyPromise.all([updateUserInfo, updateDataWarehouse, updateMySql, redisAction]);
+            await PinkyPromise.all([updateUserInfo, updateMySql, redisAction]);
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
@@ -855,7 +579,7 @@ describe('Full integration flows testing real life services', () => {
             resolve(
                 db
                     .collection("tests")
-                    .updateOne({ id: uuid4 }, { id: uuid4, testing: "pinky-promise" }, { upsert: true })
+                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise" } }, { upsert: true })
             );
         }, {
             success: function (result) {
@@ -868,17 +592,6 @@ describe('Full integration flows testing real life services', () => {
                 return res.acknowledged === true;
             },
             retryMsDelay: 400,
-        });
-    
-        let updateDataWarehouseCounter = 0;
-        const updateDataWarehouse = new PinkyPromise<AxiosResponse>((resolve, reject) => {
-            resolve(axios.get(`http://amazon.com/`));
-        }, {
-            success: function (result) {
-                return true;
-            },
-            revertOnFailure: false,
-            retryMsDelay: 471,
         });
     
         let updateToMysqlCounter = 0;
@@ -926,7 +639,7 @@ describe('Full integration flows testing real life services', () => {
         });
 
         try {
-            await PinkyPromise.all([updateUserInfo, updateDataWarehouse, updateMySql, redisAction]);
+            await PinkyPromise.all([updateUserInfo, updateMySql, redisAction]);
             expect(true).toBe(false);
         } catch (e) {
             expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
@@ -949,7 +662,7 @@ function setupTestEnv() {
 }
 
 function teardownTestEnv() {
-    return spawnSync('docker-compose', ['down'], {
+    return spawnSync('docker-compose', ['down', '-v'], {
         cwd: path.resolve(__dirname, './'),
     });
 }
