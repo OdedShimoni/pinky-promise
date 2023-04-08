@@ -132,7 +132,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             verbose && (logger.log(`PinkyPromise with id: ${this._id} is being retried for the ${ordinal(this._attemptsCount)} time...`));
             const executor = this._innerPromiseExecutor;
             await new Promise((resolve) => setTimeout(resolve, this._config.retryMsDelay));
-            if (this._doNotRescue) return;
+            if (this._doNotRescue) return; // Sometimes the retry is called before 'revert' but is finishing after it
             try {
                 const innerPromise = new Promise<TT>(executor);
                 this._innerPromiseLastResolvedValue = await innerPromise;
