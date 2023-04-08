@@ -653,6 +653,94 @@ describe('Full integration flows testing real life services', () => {
             expect(redisValue).toBe(null);
         }
     });
+
+    test('All revert if three fail (Mongo + MySQL + Redis) and retry isn\'t being called after revert', async () => {
+        const db = mongoClient.db("tests");
+        const uuid4 = uuidv4();
+        const updateUserInfo = new PinkyPromise<any>((resolve, reject) => {
+            resolve(
+                db
+                    .collection("tests")
+                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise" } }, { upsert: true })
+            );
+        }, {
+            success: function (result) {
+                return false;
+            },
+            revert: async function () {
+                const res = await db
+                    .collection('tests')
+                    .deleteOne({ id: uuid4 });
+                return res.acknowledged === true;
+            },
+            retryMsDelay: 400,
+        });
+    
+        let updateToMysqlCounter = 0;
+        const updateMySql = new PinkyPromise<any>((resolve, reject) => {
+            if (++updateToMysqlCounter < 4) {
+                return reject();
+            }
+            const query = `INSERT INTO test.pinky_promise_tests (uuid, col) VALUES ('${uuid4}', 'test_value')`;
+            mysqlConnectionPool.query(query, (err, res) => {
+                if (err) {
+                    return reject(err);
+                }
+                return resolve(res);
+            });
+        },
+        {
+            success: function (result) {
+                return false;
+            },
+            revert: function () {
+                const query = `DELETE FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`;
+                mysqlConnectionPool.query(query, (err, res) => {
+                    if (![0,1].includes((res as any)?.affectedRows)) {
+                        return false;
+                    }
+                });
+            }
+        });
+
+        const redisAction = new PinkyPromise<any>((resolve, reject) => {
+            redisClient.set('test', 'test_value')
+                .then(res => {
+                    resolve(res);
+                })
+                .catch(e => {
+                    reject(e);
+                });
+        }, {
+            success: function (result) {
+                return false;
+            },
+            revert: function () {
+                redisClient.del('test');
+            }
+        });
+
+        try {
+            await PinkyPromise.all([updateUserInfo, updateMySql, redisAction]);
+            expect(true).toBe(false);
+        } catch (e) {
+            setTimeout(() => {
+                expect(e instanceof errors.PromiseFailedAndReverted).toBe(true);
+                mysqlConnectionPool.query(`SELECT * FROM test.pinky_promise_tests WHERE uuid = '${uuid4}'`, (err, res) => {
+                    expect(res[0]?.col).toBe(undefined);
+                });
+                db.collection('tests').findOne({ id: uuid4 })
+                    .then(insertedRowToMongo => {
+                        expect(insertedRowToMongo).toBe(null);
+                        expect(insertedRowToMongo?.testing).toBe(undefined);
+                    });
+                redisClient.get('test')
+                    .then(redisValue => {
+                        expect(redisValue).toBe(null);
+                    });
+            }, 3000);
+        }
+    });
 });
 
 function setupTestEnv() {
