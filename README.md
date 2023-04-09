@@ -24,7 +24,7 @@ It has the same interface as 'Promise', along with minimal configuration, and ca
 ```javascript
  // 15 lines of code which will retry each failed update, and if either's retries fail, revert both
 
-const { PinkyPromise } = require('pinky-promise');
+const { PinkyPromise } = require('pinky-promise-js');
 PinkyPromise.config();
 
 const updateUserInfo = new PinkyPromise( (resolve, reject) => {
@@ -50,7 +50,7 @@ PinkyPromise.all([updateUserInfo, updateDataWarehouse]);
 Install pinky-promise with npm
 
 ```bash
-  npm install pinky-promise
+  npm install pinky-promise-js
 ```
 
 ## Mini Documentation
@@ -64,7 +64,7 @@ This is how you use Pinky Promise. First, you create a new instance of Pinky Pro
 
 Example with MongoDB:
 ```javascript
-const { PinkyPromise } = require('pinky-promise');
+const { PinkyPromise } = require('pinky-promise-js');
 PinkyPromise.config();
 
 const updateUserInfo = new PinkyPromise( (resolve, reject) => {
@@ -98,7 +98,7 @@ It is good for ensuring synchronicity between multiple promises, and can be used
 
 Example which synchronizes between MongoDB insert and an API call:
 ```javascript
-const { PinkyPromise } = require('pinky-promise');
+const { PinkyPromise } = require('pinky-promise-js');
 PinkyPromise.config();
 
 const updateUserInfo = new PinkyPromise( (resolve, reject) => {
@@ -150,7 +150,7 @@ One of the most useful features of Pinky Promise is when dealing with multiple p
 ## Examples:
 Let's take this code:
 ```javascript
-const { PinkyPromise } = require('pinky-promise');
+const { PinkyPromise } = require('pinky-promise-js');
 PinkyPromise.config();
 
 const updateUserInfo = new PinkyPromise( (resolve, reject) => {
@@ -247,7 +247,7 @@ If any failure occurs, Pinky Promise will throw a precise error describing what 
 
 In addition, Pinky Promise can be configured with your already in-use logger, and every phase is logged to it:
 ```javascript
-import { PinkyPromise } from 'pinky-promise';
+import { PinkyPromise } from 'pinky-promise-js';
 import logger from 'my-logger';
 PinkyPromise.config({ logger });
 // ...
@@ -256,7 +256,7 @@ PinkyPromise.config({ logger });
 * PromiseFailedAndReverted is thrown had the promise' 'success' method returned false, even after all its retry attempts. The promise had gotten to its retry threshold, so revert was initiated and succeeded.
 If promise is part of `PinkyPromise.all`, this error means that at least one of the promises in the group failed even after all its retry attempts, and all of them were reverted successfuly.
 ```javascript
-import { PinkyPromise, errors: { PromiseFailedAndReverted } } from 'pinky-promise';
+import { PinkyPromise, errors: { PromiseFailedAndReverted } } from 'pinky-promise-js';
 // ...
 try {
   await PinkyPromise.all([updateUserInfo, updateDataWarehouse]);
@@ -269,7 +269,7 @@ try {
 
 * FatalErrorNotReverted is thrown if the promise failed to be reverted. Is also thrown if as part of a group of promises, at least one of the promises failed, which initiated revert of all of them, but at least one of the promises failed to be reverted.
 ```javascript
-import { PinkyPromise, errors: { FatalErrorNotReverted } } from 'pinky-promise';
+import { PinkyPromise, errors: { FatalErrorNotReverted } } from 'pinky-promise-js';
 // ...
 try {
   await PinkyPromise.all([updateUserInfo, updateDataWarehouse]);
@@ -282,7 +282,7 @@ try {
 
 * ProgrammerError is thrown if the user mis-configured the promise, or the global PinkyPromise.
 ```javascript
-import { PinkyPromise, errors: { ProgrammerError } } from 'pinky-promise';
+import { PinkyPromise, errors: { ProgrammerError } } from 'pinky-promise-js';
 // ...
 try {
   const pinky = new PinkyPromise( (resolve, reject) => {
@@ -304,7 +304,7 @@ try {
 
 * PromiseFailed is thrown if the promise failed, but Pinky Promise is set to not be reverted on failure.
 ```javascript
-import { PinkyPromise, errors: { PromiseFailed } } from 'pinky-promise';
+import { PinkyPromise, errors: { PromiseFailed } } from 'pinky-promise-js';
 // ...
 const pinky = new PinkyPromise( (resolve, reject) => {
   // do something
@@ -324,7 +324,7 @@ try {
 
 * This is how you can check if the error thrown is part of the promise itself and not a part of the Pinky Promise' fail safety:
 ```javascript
-import { PinkyPromise, errors: { isPinkyPromiseError } } from 'pinky-promise';
+import { PinkyPromise, errors: { isPinkyPromiseError } } from 'pinky-promise-js';
 // ...
 const pinky = new PinkyPromise( (resolve, reject) => {
   // do something
@@ -409,7 +409,7 @@ const pinky = new PinkyPromise( (resolve, reject) => {
 ```
 - Global configuration: the configuration which is passed to the 'PinkyPromise.config' method, implements PinkyPromiseGlobalConfig interface:
 ```javascript
-import { PinkyPromise } from 'pinky-promise';
+import { PinkyPromise } from 'pinky-promise-js';
 PinkyPromise.config({
   // This is the global configuration object
 });
@@ -427,20 +427,20 @@ PinkyPromise.config({
 ### Global configuration
 - `logger`: an object which implements the *ILogger* interface, default empty. In addition to the example above, can be used with 'console' as following:
 ```javascript
-import { PinkyPromise } from 'pinky-promise';
+import { PinkyPromise } from 'pinky-promise-js';
 PinkyPromise.config({ logger: console });
 // ...
 ```
 - `verbose`: boolean. Default is *true*. *true* is also the recommended value to ensure full transparency under any circumstances. If *true*, logs every phase of the Pinky Promise. If `false`, logs only critical messages (such as failures).
 ```javascript
-import { PinkyPromise } from 'pinky-promise';
+import { PinkyPromise } from 'pinky-promise-js';
 PinkyPromise.config({ logger: console, verbose: false });
 // ...
 ```
 ### allSeq
 Pinky Promise has a method called `allSeq` which is similar to `PinkyPromise.all` method, but it runs the promises sequentially instead of concurrently.
 ```javascript
-import { PinkyPromise } from 'pinky-promise';
+import { PinkyPromise } from 'pinky-promise-js';
 // ...
 const pinkyPromises = [
   new PinkyPromise( (resolve, reject) => {

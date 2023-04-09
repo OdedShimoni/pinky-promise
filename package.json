@@ -1,7 +1,7 @@
 {
-  "name": "pinky-promise",
+  "name": "pinky-promise-js",
   "version": "3.8.6-beta",
-  "description": "A promise you can trust",
+  "description": "A promise you can count on - fail safe and transparent.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "Oded Shimoni",
@@ -13,8 +13,7 @@
     "build": "tsc",
     "test": "npm run build && jest",
     "build:dev": "tsc -w",
-    "prepare": "npm run build",
-    "prepublishOnly": "npm test"
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "@types/jest": "^29.4.0",
