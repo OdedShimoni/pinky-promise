@@ -4,7 +4,7 @@
 
 ![Maintainer](https://badgen.net/badge/maintainer/Oded%20Shimoni/orange)
 &nbsp;
-![npm](https://badgen.net/badge/npm/3-8-6-beta/blue)
+![npm](https://badgen.net/badge/npm/pinky-promise-js/blue)
 &nbsp;
 ![License](https://badgen.net/badge/license/Apache-License-2.0/blue)
 &nbsp;
