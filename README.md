@@ -31,7 +31,7 @@ const updateUserInfo = new PinkyPromise( (resolve, reject) => {
   resolve( updateUser({ _id: userId }, { $set: { address: 'New Updated Address' } }) );
 }, {
   success: result => result.modifiedCount === 1,
-  revert: () => updateUser({ _id: userId }, { $set: { name: 'Old Address' } }),
+  revert: () => updateUser({ _id: userId }, { $set: { address: 'Old Address' } }),
 });
 
 const updateDataWarehouse = new PinkyPromise( (resolve, reject) => {
