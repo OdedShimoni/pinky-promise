@@ -482,7 +482,11 @@ Even though Pinky Promise is quite aggressively tested (including integration te
 ## Contribution
 
 Contributions are always welcome!
+To run the project locally, clone the repo, run `yarn` and then `yarn build` to build the project.
 
+**yarn is the recommended package manager to run the project locally, since npm sometimes doesn't synergize with tsc, but npm should work as well.**
+
+These are the areas which need the most attention:
 * Edge cases
 * Consider more precise errors in group flows (`PinkyPromise.all`), perhaps it's clear enough as is.
 * Logs are super comprehensive but are a bit too verbose.
