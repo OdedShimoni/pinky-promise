@@ -302,6 +302,10 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     };
 
     static async all(pinkyPromises: (PinkyPromise<any>)[], isSequential = false): Promise<any[] | void> {
+        if (!Array.isArray(pinkyPromises)) {
+            throw new ProgrammerError(`PinkyPromise.all must receive an array of Pinky Promises.`);
+        }
+        
         const id = uuidv4();
 
         const { verbose, logger } = PinkyPromise._globalConfig;
