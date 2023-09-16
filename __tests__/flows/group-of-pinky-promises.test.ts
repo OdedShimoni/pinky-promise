@@ -58,7 +58,7 @@ describe('Group of pinky promises flows:', () => {
         expect((pinky3['_config'].success as sinon.Spy).callCount).toBe(1+1);
     });
 
-    test('all promises are resolved and NOT succeeded but SUCCEEDS in the retries', async () => {
+    test('all promises are resolved and NOT succeeded but SUCCEED in the retries', async () => {
         let counter = 1;
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
@@ -105,7 +105,7 @@ describe('Group of pinky promises flows:', () => {
         expect((pinky3['_config'].success as sinon.Spy).callCount).toBe(1 + 1);
     });
 
-    test('a promise throws', async () => {
+    test('if a promise throws, the rest should revert and the Pinky should return PromiseFailedAndReverted error', async () => {
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
                 throw new Error('error');
@@ -516,7 +516,7 @@ describe('Group of pinky promises flows:', () => {
             expect((pinky3['_config'].success as sinon.Spy).callCount).toBe(1+1);
         });
 
-        test('all promises are resolved and NOT succeeded but SUCCEEDS in the retries', async () => {
+        test('all promises are resolved and NOT succeeded but SUCCEED in the retries', async () => {
             let counter = 1;
             const pinky1 = new PinkyPromise(
                 (resolve, reject) => {
@@ -666,7 +666,7 @@ describe('Async group flows:', () => {
         expect((pinky3['_config'].success as sinon.Spy).callCount).toBe(1+1);
     });
 
-    test('all promises are resolved and NOT succeeded but SUCCEEDS in the retries', async () => {
+    test('all promises are resolved and NOT succeeded but SUCCEED in the retries', async () => {
         let counter = 1;
         const pinky1 = new PinkyPromise(
             (resolve, reject) => {
