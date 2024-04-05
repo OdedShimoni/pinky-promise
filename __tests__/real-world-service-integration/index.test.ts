@@ -110,13 +110,10 @@ describe('Full integration flows testing real world services', () => {
     test('All revert if one fails (redis)', async () => {
         const db = mongoClient.db("tests");
         const uuid4 = uuidv4();
-        const updateUserInfo = new PinkyPromise<any>((resolve, reject) => {
-            resolve(
-                db
-                    .collection("tests")
-                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise-redis-failed" } }, { upsert: true })
-            );
-        }, {
+        const updateUserInfo = PinkyPromise.from(
+            db
+                .collection("tests")
+                .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise-redis-failed" } }, { upsert: true }), {
             success: function (result) {
                 return result?.acknowledged === true;
             },
@@ -163,24 +160,21 @@ describe('Full integration flows testing real world services', () => {
     test('All revert if one fails (Mongo)', async () => {
         const db = mongoClient.db("tests");
         const uuid4 = uuidv4();
-        const updateUserInfo = new PinkyPromise<any>((resolve, reject) => {
-            resolve(
-                db
-                    .collection("tests")
-                    .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise-mongo-failed" } }, { upsert: true })
-            );
-        }, {
-            success: function (result) {
-                return false;
-            },
-            revert: async function () {
-                const res = await db
-                    .collection('tests')
-                    .deleteOne({ id: uuid4 });
-                return res.acknowledged === true;
-            },
-            retryMsDelay: 400,
-        });
+        const updateUserInfo = PinkyPromise.from(db
+                .collection("tests")
+                .updateOne({ id: uuid4 }, { $set: { id: uuid4, testing: "pinky-promise-mongo-failed" } }, { upsert: true }),
+            {
+                success: function (result) {
+                    return false;
+                },
+                revert: async function () {
+                    const res = await db
+                        .collection('tests')
+                        .deleteOne({ id: uuid4 });
+                    return res.acknowledged === true;
+                },
+                retryMsDelay: 400,
+            });
     
         const redisAction = new PinkyPromise<any>((resolve, reject) => {
             redisClient.set('test', 'test_value')

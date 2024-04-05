@@ -446,10 +446,7 @@ describe('Async flows:', () => {
 
     test('promise is resolved and NOT succeeded but EXCEEDS number of retries and SUCCEEDS in the 2nd revert attempt', async () => {
         let revertCounter = 0;
-        const pinky = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => false,
                 revert: function() {
@@ -472,10 +469,7 @@ describe('Async flows:', () => {
     });
 
     test('promise is resolved and NOT succeeded but EXCEEDS number of retries and NOT succeeded in the reverts', async () => {
-        const pinky = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => false,
                 revert: () => false,

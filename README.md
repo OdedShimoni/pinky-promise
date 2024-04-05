@@ -19,7 +19,7 @@ A promise you can count on - fail safe and transparent.
 -
 Pinky Promise is great for dealing with complex flows where you want to ensure that a series of actions are executed successfully.
 
-It has the same interface as 'Promise', along with minimal configuration, and can be used as a drop-in replacement.
+It has the same interface as `Promise`, along with minimal configuration, and can be used as a drop-in replacement.
 
 ```javascript
  // 15 lines of code which will retry each failed update, and if either's retries fail, revert both
@@ -27,19 +27,21 @@ It has the same interface as 'Promise', along with minimal configuration, and ca
 const { PinkyPromise } = require('pinky-promise-js');
 PinkyPromise.config();
 
-const updateUserInfo = new PinkyPromise( (resolve, reject) => {
-  resolve( updateUser({ _id: userId }, { $set: { address: 'New Updated Address' } }) );
-}, {
-  success: result => result.modifiedCount === 1,
-  revert: () => updateUser({ _id: userId }, { $set: { address: 'Old Address' } }),
-});
+const updateUserInfo = PinkyPromise.from(
+  updateUser({ _id: userId }, { $set: { address: 'New Updated Address' } }),
+  {
+    success: result => result.modifiedCount === 1,
+    revert: () => updateUser({ _id: userId }, { $set: { address: 'Old Address' } }),
+  }
+);
 
-const updateDataWarehouse = new PinkyPromise( (resolve, reject) => {
-  resolve( axios.put(`https://datawarehouse.com/api/user/${userId}`, { address: 'New Updated Address' }) );
-}, {
-  success: result => result.status === 200 && result.data.success === true,
-  revert: () => axios.put(`https://datawarehouse.com/api/user/${userId}`, { address: 'Old Address' }),
-});
+const updateDataWarehouse = PinkyPromise.from(
+  axios.put(`https://datawarehouse.com/api/user/${userId}`, { address: 'New Updated Address' }),
+  {
+    success: result => result.status === 200 && result.data.success === true,
+    revert: () => axios.put(`https://datawarehouse.com/api/user/${userId}`, { address: 'Old Address' }),
+  }
+);
 
 PinkyPromise.all([updateUserInfo, updateDataWarehouse]);
 ```
@@ -55,36 +57,42 @@ Install pinky-promise with npm
 
 ## Mini Documentation
 ## Usage/Examples
-This is how you use Pinky Promise. First, you create a new instance of Pinky Promise, and provide it with the following parameters (example above):
-1. The promise' execution function which has 'resolve' and 'reject' parameters. The same as the function you provide to the 'Promise' constructor.
-2. A config object with the following properties:
-    * success: a function which accepts the promise resolved value as a parameter and returns boolean. It should return true if the promise executor succeeded, and false if it failed.
-    * revert: a function which will be called if the promise failed, and should revert the promise' execution. If returns explicit 'false', the revert is declared as failed and will also be retried. Can also be canceled.
+First, an instance of Pinky Promise should be created in one of 2 ways:
+
+A. Constructing it with an executor (example below), providing the following arguments:
+  1. The promise' execution function which has `resolve` and `reject` parameters. The same as the function you provide to the `Promise` constructor.
+  2. A `PinkyPromise` config object with the following properties:
+    * `success`: a function which accepts the promise resolved value as a parameter and returns boolean. It should return true if the promise executor succeeded, and false if it failed.
+    * `revert`: a function which will be called if the promise failed, and should revert the promise' execution. If returns explicit `false`, the revert is declared as failed and will also be retried. Can also be canceled.
     * Further configuration options are described below in #Features section.
+
+B. Constructing it from an existing `Promise` using `PinkyPromise.from`, also providing 2 arguments:
+  1. A Promise.
+  2. The same `PinkyPromise` config object.
 
 Example with MongoDB:
 ```javascript
 const { PinkyPromise } = require('pinky-promise-js');
 PinkyPromise.config();
 
-const updateUserInfo = new PinkyPromise( (resolve, reject) => {
-  resolve(db
+const updateUserInfo = PinkyPromise.from(
+  db
     .collection('houses')
     .insertOne({
       address: 'nice',
       size: 'large',
-      address: 'nice',
       price: 100000,
-    }) );
-}, {
-  success: result => !!result?.insertedId,
-  revert: async function() {
-    const res = await db
-      .collection('houses')
-      .deleteOne({ address: 'nice' }); // see #Best Practices below
-    return res.deletedCount === 1;
-  },
-});
+    }),
+  {
+    success: result => !!result?.insertedId,
+    revert: async function() {
+      const res = await db
+        .collection('houses')
+        .deleteOne({ address: 'nice' }); // see #Best Practices below
+      return res.deletedCount === 1;
+    },
+  }
+  );
 
 try {
   const updatedUserInfo = await updateUserInfo;
@@ -101,13 +109,13 @@ Example which synchronizes between MongoDB insert and an API call:
 const { PinkyPromise } = require('pinky-promise-js');
 PinkyPromise.config();
 
+// note how a PinkyPromise instance can be constructed with an executor, exactly the same as the regular Promise one:
 const updateUserInfo = new PinkyPromise( (resolve, reject) => {
   resolve( db
     .collection('houses')
     .insertOne({
       address: 'nice',
       size: 'large',
-      address: 'nice',
       price: 100000,
     }) );
 }, {
@@ -120,12 +128,14 @@ const updateUserInfo = new PinkyPromise( (resolve, reject) => {
   },
 });
 
-const updateDataWarehouse = new PinkyPromise( (resolve, reject) => {
-  resolve( axios.put(`https://datawarehouse.com/api/user/${userId}`, { address: 'New Updated Address' }) );
-}, {
-  success: result => result.status === 200 && result.data.success === true,
-  revert: () => axios.put(`https://datawarehouse.com/api/user/${userId}`, { address: 'Old Address' }),
-});
+
+const updateDataWarehouse = PinkyPromise.from(
+  axios.put(`https://datawarehouse.com/api/user/${userId}`, { address: 'New Updated Address' }),
+  {
+    success: result => result.status === 200 && result.data.success === true,
+    revert: () => axios.put(`https://datawarehouse.com/api/user/${userId}`, { address: 'Old Address' }),
+  }
+);
 
 try {
   const [updatedUserInfo, updatedDataWarehouse] = await PinkyPromise.all([updateUserInfo, updateDataWarehouse]);
@@ -153,24 +163,24 @@ Let's take this code:
 const { PinkyPromise } = require('pinky-promise-js');
 PinkyPromise.config();
 
-const updateUserInfo = new PinkyPromise( (resolve, reject) => {
-  resolve( db
+const updateUserInfo = PinkyPromise.from(
+  db
     .collection('houses')
     .insertOne({
       address: 'nice',
       size: 'large',
-      address: 'nice',
       price: 100000,
-    }) );
-}, {
-  success: result => !!result?.insertedId,
-  revert: async function() {
-    const res = await db
-      .collection('houses')
-      .deleteOne({ address: 'nice' }); // see #Best Practices below
-    return res?.deletedCount === 1;
-  },
-});
+    }),
+  {
+    success: result => !!result?.insertedId,
+    revert: async function() {
+      const res = await db
+        .collection('houses')
+        .deleteOne({ address: 'nice' }); // see #Best Practices below
+      return res?.deletedCount === 1;
+    },
+  }
+);
 
 await updateUserInfo; // promise succeeds
 ```
