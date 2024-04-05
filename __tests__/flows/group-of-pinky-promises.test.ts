@@ -623,10 +623,7 @@ describe('Group of pinky promises flows:', () => {
 
 describe('Async group flows:', () => {
     test('all promises are resolved and succeeded', async () => {
-        const pinky1 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky1 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revert: () => false,
@@ -635,10 +632,7 @@ describe('Async group flows:', () => {
         const _pinky1SuccessSpy = sinon.spy(pinky1['_config'], 'success');
         const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revertOnFailure: false,
@@ -646,10 +640,7 @@ describe('Async group flows:', () => {
         );
         const _pinky2SuccessSpy = sinon.spy(pinky2['_config'], 'success');
 
-        const pinky3 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky3 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revertOnFailure: false,
@@ -681,10 +672,7 @@ describe('Async group flows:', () => {
         const _pinky1SuccessSpy = sinon.spy(pinky1['_config'], 'success');
         const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revertOnFailure: false,
@@ -692,10 +680,7 @@ describe('Async group flows:', () => {
         );
         const _pinky2SuccessSpy = sinon.spy(pinky2['_config'], 'success');
 
-        const pinky3 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky3 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revertOnFailure: false,
@@ -725,20 +710,14 @@ describe('Async group flows:', () => {
             }
         );
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revert: () => true,
             }
         );
 
-        const pinky3 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky3 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revert: () => true,
@@ -772,10 +751,7 @@ describe('Async group flows:', () => {
         const _pinky1SuccessSpy = sinon.spy(pinky1['_config'], 'success');
         const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => false,
                 revert: function() {
@@ -786,10 +762,7 @@ describe('Async group flows:', () => {
         const _pinky2SuccessSpy = sinon.spy(pinky2['_config'], 'success');
         const _pinky2RevertSpy = sinon.spy(pinky2['_config'], 'revert');
 
-        const pinky3 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky3 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revert: function() {
@@ -828,10 +801,7 @@ describe('Async group flows:', () => {
         const _pinky1SuccessSpy = sinon.spy(pinky1['_config'], 'success');
         const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => false,
                 revert: function() {
@@ -842,10 +812,7 @@ describe('Async group flows:', () => {
         const _pinky2SuccessSpy = sinon.spy(pinky2['_config'], 'success');
         const _pinky2RevertSpy = sinon.spy(pinky2['_config'], 'revert');
         
-        const pinky3 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky3 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revert: function() {
@@ -884,10 +851,7 @@ describe('Async group flows:', () => {
         const _pinky1SuccessSpy = sinon.spy(pinky1['_config'], 'success');
         const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => false,
                 revert: function() {
@@ -898,10 +862,7 @@ describe('Async group flows:', () => {
         const _pinky2SuccessSpy = sinon.spy(pinky2['_config'], 'success');
         const _pinky2RevertSpy = sinon.spy(pinky2['_config'], 'revert');
         
-        const pinky3 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky3 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revert: function() {
@@ -924,10 +885,7 @@ describe('Async group flows:', () => {
     });
 
     test('one of the promises fails but the other is configured "isRetryable": false', async () => {
-        const pinky1 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky1 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => false,
                 revert: function() {
@@ -940,10 +898,7 @@ describe('Async group flows:', () => {
         const _pinky1RetrySpy = sinon.spy(pinky1, '_retry');
         const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revert: function() {
@@ -967,10 +922,7 @@ describe('Async group flows:', () => {
     });
 
     test('one of the promises fails but the other is configured "revertOnFailure": false', async () => {
-        const pinky1 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky1 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => false,
                 revert: function() {
@@ -982,10 +934,7 @@ describe('Async group flows:', () => {
         const _pinky1RetrySpy = sinon.spy(pinky1, '_retry');
         const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revertOnFailure: false,
@@ -1005,10 +954,7 @@ describe('Async group flows:', () => {
     });
 
     test('one of the promises fails but both are configured "revertOnFailure": false', async () => {
-        const pinky1 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky1 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => false,
                 revertOnFailure: false,
@@ -1017,10 +963,7 @@ describe('Async group flows:', () => {
         const _pinky1SuccessSpy = sinon.spy(pinky1['_config'], 'success');
         const _pinky1RetrySpy = sinon.spy(pinky1, '_retry');
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revertOnFailure: false,
@@ -1039,10 +982,7 @@ describe('Async group flows:', () => {
     });
 
     test('one of the promises fails but the other fails to revert', async () => {
-        const pinky1 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky1 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => true,
                 revert: function() {
@@ -1054,10 +994,7 @@ describe('Async group flows:', () => {
         const _pinky1RetrySpy = sinon.spy(pinky1, '_retry');
         const _pinky1RevertSpy = sinon.spy(pinky1['_config'], 'revert');
 
-        const pinky2 = new PinkyPromise(
-            (resolve, reject) => {
-                resolve( createExecutorPromiseMock() );
-            },
+        const pinky2 = PinkyPromise.from(createExecutorPromiseMock(),
             {
                 success: () => false,
                 revert: function() {

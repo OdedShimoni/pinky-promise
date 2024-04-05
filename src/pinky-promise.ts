@@ -41,6 +41,9 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
     
     public _groupContext?: PinkyPromiseGroupContext;
 
+    public static from<TT>(promise: Promise<TT>, config: PinkyPromiseUserConfig<TT>) {
+        return new PinkyPromise((resolve, reject) => resolve(promise), config);
+    }
 
     private _success = async function(): Promise<boolean> {
         const { verbose, logger } = PinkyPromise._globalConfig;
@@ -301,7 +304,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         this._doNotRescue = true;
     };
 
-    static async all(pinkyPromises: (PinkyPromise<any>)[], isSequential = false): Promise<any[] | void> {
+    static async all(pinkyPromises: (PinkyPromise<any>)[], isSequential = false): Promise<any[]> {
         if (!Array.isArray(pinkyPromises)) {
             throw new ProgrammerError(`PinkyPromise.all must receive an array of Pinky Promises.`);
         }
@@ -317,7 +320,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 allPinkyPromises.map(initiateGroupContext);
             await Promise.all(initiateGroupContextAll(pinkyPromises));
 
-            // TODO write tests retries also happen sequentially
+            // TODO: automate a test that retries also happen sequentially
             const pinkyPromiseResults = isSequential ? await awaitAllSequentially(pinkyPromises.slice().reverse()) : await Promise.all(pinkyPromises);
             // using slice to reverse immutably
             // reverse as an optimization for the sequential case to avoid re-arranging the array every time
@@ -386,10 +389,10 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
                 const reversedPinkyPromises = pinkyPromises.reverse();
                 const reversedPinkyPromisesReverts = reversedPinkyPromises.map(pinkyPromise => pinkyPromise._revert(true));
                 return Promise.all(reversedPinkyPromisesReverts);
-                // Revert will always be concurrent even if all is sequential, because I can't see a reason to revert sequentially
+                // Revert will always be concurrent even if the promise execution is sequential, because I can't see a reason to revert sequentially
             } catch (revertError) {
                 logger.error(`Fatal Error!: PinkyPromise.all with id:${id} revert error!`, revertError);
-                // test what if one of the first reverts rejects and the error is thrown, if the rest of the reverts are still executed or it stops
+                // TODO: automate a test for a case where one of the first reverts rejects and the error is thrown, if the rest of the reverts are still executed, or the execution stops
                 throw new FatalErrorNotReverted(`Fatal Error!: PinkyPromise.all with id:${id} revert error!`);
             }
         }
@@ -406,7 +409,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
         }
     }
 
-    static async allSeq(pinkyPromises: (PinkyPromise<any>)[]): Promise<any[] | void> {
+    static async allSeq(pinkyPromises: (PinkyPromise<any>)[]): Promise<any[]> {
         return await PinkyPromise.all(pinkyPromises, true);
     }
 }
