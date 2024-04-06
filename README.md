@@ -62,9 +62,12 @@ First, an instance of Pinky Promise should be created in one of 2 ways:
 A. Constructing it with an executor (example below), providing the following arguments:
   1. The promise' execution function which has `resolve` and `reject` parameters. The same as the function you provide to the `Promise` constructor.
   2. A `PinkyPromise` config object with the following properties:
-    * `success`: a function which accepts the promise resolved value as a parameter and returns boolean. It should return true if the promise executor succeeded, and false if it failed.
-    * `revert`: a function which will be called if the promise failed, and should revert the promise' execution. If returns explicit `false`, the revert is declared as failed and will also be retried. Can also be canceled.
-    * Further configuration options are described below in #Features section.
+
+  * `success`: a function which accepts the promise resolved value as a parameter and returns boolean. It should return true if the promise executor succeeded, and false if it failed.
+
+  * `revert`: a function which will be called if the promise failed, and should revert the promise' execution. If returns explicit `false`, the revert is declared as failed and will also be retried. Can also be canceled.
+
+  * Further configuration options are described below in #Features section.
 
 B. Constructing it from an existing `Promise` using `PinkyPromise.from`, also providing 2 arguments:
   1. A Promise.
