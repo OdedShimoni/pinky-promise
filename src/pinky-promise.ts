@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "crypto";
 import { PinkyPromiseGlobalConfig, PinkyPromiseGroupContext, PinkyPromiseUserConfig } from "./contract/pinky-promise.contract";
 import { FatalErrorNotReverted, isPinkyPromiseError, ProgrammerError, PromiseFailed, PromiseFailedAndReverted, RetriesDidNotSucceed, RevertError } from "./errors";
 import { ordinal } from "./utility/ordinal";
@@ -275,7 +275,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             throw new ProgrammerError(`${this.constructor.name} success method must be a synchronous function.`);
         }
 
-        this._id = uuidv4();
+        this._id = randomUUID();
 
         this._innerPromiseExecutor = executor;
 
@@ -309,7 +309,7 @@ export class PinkyPromise<TT> implements PromiseLike<TT> {
             throw new ProgrammerError(`PinkyPromise.all must receive an array of Pinky Promises.`);
         }
         
-        const id = uuidv4();
+        const id = randomUUID();
 
         const { verbose, logger } = PinkyPromise._globalConfig;
 

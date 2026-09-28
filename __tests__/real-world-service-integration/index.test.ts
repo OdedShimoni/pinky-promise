@@ -12,7 +12,7 @@ import { spawnSync } from 'child_process';
 import * as mongodb from 'mongodb';
 import path from 'path';
 import { createClient } from 'redis';
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "crypto";
 import { errors, PinkyPromise } from '../../src';
 PinkyPromise.config();
 
