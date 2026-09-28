@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
   pull_request:
-# Read-only token; fork PRs get no secrets under `pull_request` (never use `pull_request_target` here)
 permissions:
   contents: read
 concurrency:
